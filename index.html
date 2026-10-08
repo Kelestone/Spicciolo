@@ -192,6 +192,7 @@ main{padding-block:6px 150px;display:flex;flex-direction:column;gap:16px}
 .mt td{padding:6px 0;border-top:1px solid var(--line);vertical-align:top}
 .mt tr:first-child td{border-top:0}
 .mt td:last-child{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.ht td{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px;padding:7px 0 7px 6px}.ht td:first-child{text-align:left;font-family:var(--body);padding-left:0}.ht tr:first-child td{color:var(--muted);font-family:var(--body);font-size:11.5px}.ht tr[data-goym]{cursor:pointer}.ht tr.cur td{font-weight:700}.ht .mut{color:var(--muted);font-family:var(--body)}
 .mt td.na{color:var(--muted);font-family:var(--body);font-size:12px}
 .msg{border-left:3px solid var(--accent);padding:6px 10px;background:var(--surface2);font-size:13.5px}
 .msg.bad{border-left-color:var(--bad)} .msg.good{border-left-color:var(--good)}
@@ -980,6 +981,12 @@ function renderStats(){
     }
     if(yc.months) b+='<div class="msg '+(yc.saving>=0?"good":"bad")+'"><b>'+ui.ym.slice(0,4)+', mesi chiusi ('+yc.months+'):</b> risparmiati '+euro0(yc.saving)+(yc.rate!==null?' ('+Math.round(yc.rate*100)+'% delle entrate)':'')+'. '+(yc.overMonths? yc.overMonths+(yc.overMonths>1?" mesi":" mese")+' sopra budget, sforamento totale '+euro0(yc.overTot)+'.' : 'Nessun mese sopra budget.')+'</div>';
     h+=win("Risparmio", (pc? "tot. "+euro0(pc.pot) : (m.rate!==null? Math.round(m.rate*100)+"%" : "")), b);
+    // storico: risparmio effettivo mese per mese e accantonato a fine mese (tocca un mese per aprirlo)
+    if(pc){ const rows=[]; for(let mm=ui.ym, k=0; mm>=pc.start && k<12; mm=ymAdd(mm,-1), k++){ const c=monthCtx(mm); if(!c.list.length && !c.ins.length) continue; rows.push([mm,c,potCtx(mm)]); }
+      if(rows.length){ let t='<table class="mt ht"><tr><td>Mese</td><td>Risparmio</td><td>Budget</td><td>Accantonato</td></tr>';
+        rows.forEach(([mm,c,p])=>{ const bud= c.tb? (c.over? '<span style="color:var(--bad)">−'+euro0(c.over)+'</span>' : (c.wait||c.isCur? '<span class="mut">in corso</span>' : '<span style="color:var(--good)">+'+euro0(c.tb-c.tot)+'</span>')) : '—';
+          t+='<tr data-goym="'+mm+'"'+(mm===ui.ym?' class="cur"':'')+'><td>'+esc(monthName(mm,{month:"short",year:"2-digit"}))+'</td><td>'+(c.wait? '<span class="mut">in attesa</span>' : '<span style="color:var(--'+(c.saving>=0?"good":"bad")+')">'+euro0(c.saving)+'</span>')+'</td><td>'+bud+'</td><td>'+euro0(p.pot)+'</td></tr>'; });
+        h+=win("Storico risparmio", "", t+'</table><p class="hint">Risparmio effettivo = entrate − spese del mese. Budget: verde quanto è avanzato, rosso lo sforamento. Accantonato = totale a fine mese. Tocca un mese per aprirlo.</p>'); } }
   }
 
   // 1. dove vanno i soldi (macro-categorie; le grigie riunite)
@@ -1070,6 +1077,7 @@ function renderStats(){
   const v=$("v-stats"); v.innerHTML=h;
   v.querySelectorAll("[data-mac]").forEach(b=>{ b.onclick=()=>{ const id=b.getAttribute("data-mac"); ui.sel= ui.sel===id ? null : id; ui.selSub=null; ui.bar=null; haptic(6); renderStats(); if(ui.sel){ const d=$("detail"); if(d) d.scrollIntoView({behavior:fxOn()?"smooth":"auto",block:"start"}); } }; });
   v.querySelectorAll("[data-sub]").forEach(b=>{ b.onclick=()=>{ const k=b.getAttribute("data-sub"); if(!k) return; ui.selSub= ui.selSub===k ? null : k; renderStats(); }; });
+  v.querySelectorAll("[data-goym]").forEach(r=>{ r.onclick=()=>{ const mm=r.getAttribute("data-goym"); if(mm===ui.ym) return; ui.ym=mm; ui.bar=null; ui.day=null; haptic(6); render(true); window.scrollTo(0,0); }; });
   v.querySelectorAll("[data-bar]").forEach(b=>{ b.onclick=()=>{ const i=+b.getAttribute("data-bar"); ui.bar = ui.bar===i ? null : i; renderStats(); }; });
   v.querySelectorAll("[data-day]").forEach(b=>{ b.onclick=()=>{ const d=b.getAttribute("data-day"); ui.day = ui.day===d ? null : d; renderStats(); }; });
   bindRows(v);
