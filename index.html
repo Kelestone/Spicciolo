@@ -673,6 +673,7 @@ function upcomingIn(ym){ const t=today(), from=iso(new Date(dateObj(t).getTime()
 
 /* ---------- analisi ---------- */
 const consumption = e => !isInvest(e);
+const firstDataYm = () => { const d=[...S.exps.map(e=>e.date),...(S.ins||[]).map(e=>e.date)].sort()[0]; return d? ymOf(d) : null; };
 const stipOf = ym => (S.ins||[]).filter(e=>ymOf(e.date)===ym && e.kind==="stip").reduce((t,e)=>t+e.amt,0);
 const expsOf = (ym,f) => S.exps.filter(e=>ymOf(e.date)===ym && consumption(e) && (!f || f(e)));
 function byMac(list){ const m={}; list.forEach(e=>{ const k=e.mac||"__chk"; m[k]=(m[k]||0)+e.amt; }); return Object.keys(m).map(id=>({id,v:m[id]})).sort((a,b)=>b.v-a.v); }
@@ -946,24 +947,21 @@ function renderStats(){
     const row=(l,v,cls)=>'<tr><td>'+l+'</td><td'+(cls?' style="color:var(--'+cls+')"':'')+'>'+v+'</td></tr>';
     const mn=esc(monthName(ui.ym,{month:"long"}));
     if(!m.inTot && !m.upInTot) b+='<p class="hint">Nessuna entrata registrata a '+mn+'. Aggiungi lo stipendio con + (scrivi «stipendio 2400»): il risparmio si calcola da lì.</p>';
-    else if(m.wait) b+='<p class="hint">Lo stipendio di '+mn+' non è ancora registrato: il risparmio del mese si calcola quando lo inserisci, per non confrontare le spese con entrate parziali.</p>';
+    else if(m.wait) b+='<p class="hint">Lo stipendio di '+mn+' non è ancora registrato'+(m.upInTot?': nelle entrate conto quello atteso dalla ricorrenza.':' e non c\'è uno stipendio ricorrente: la quota di risparmio è parziale finché non lo inserisci.')+'</p>';
     let tb='';
-    if(m.tb && !m.wait && m.inTot){
-      tb=row("Stipendio"+(m.inTot>m.stip?" e altre entrate":""),"+"+euro(m.inTot),"good")+row("Budget del mese","− "+euro0(m.tb))+row("Quota di risparmio (entrate − budget)",euro0(m.quota),m.quota>=0?"good":"bad")
-        +row("Spese del mese",euro(m.tot))+(m.over? row("Sforamento (erode il risparmio)","− "+euro(m.over),"bad") : row("Budget non speso (si aggiunge)","+ "+euro(m.tb-m.tot),"good"))
-        +row("Risparmio del mese",euro(m.saving),m.saving>=0?"good":"bad")+row("Tasso di risparmio",Math.round(m.rate*100)+"%")+(m.inv?row("di cui fuori: investimenti",euro(m.inv)):"");
-    } else {
-      tb=(m.inTot? row("Entrate finora","+"+euro(m.inTot),"good") : "")+(m.tb? row("Budget del mese",euro0(m.tb)) : "")+row("Spese",euro(m.tot))
-        +(m.tb? (m.over? row("Sforamento","+"+euro(m.over),"bad") : row("Budget rimasto",euro(m.tb-m.tot),"good")) : "")
-        +(m.wait && m.upInTot? row("Stipendio atteso (ricorrenza)","+"+euro0(m.upInTot))+(m.tb? row("Quota di risparmio prevista (entrate attese − budget)",euro0(m.inTot+m.upInTot-m.tb),(m.inTot+m.upInTot-m.tb)>=0?"good":"bad") : "") : "")
-        +(!m.wait && m.inTot? row("Risparmio (entrate − spese)",euro(m.saving),m.saving>=0?"good":"bad")+(m.rate!==null? row("Tasso di risparmio",Math.round(m.rate*100)+"%") : "") : "")
-        +(m.inv?row("di cui fuori: investimenti",euro(m.inv)):"");
-    }
+    const inAll=m.inTot+(m.isCur?m.upInTot:0), bLeft=m.tb-m.tot, bProj=m.tb-m.proj;
+    // ordine: budget residuo, budget previsto, entrate, spese, quota di risparmio, spese previste (con dettaglio), accantonato
+    if(m.tb) tb+=row("Budget residuo", bLeft>=0? euro(bLeft)+" di "+euro0(m.tb) : "sforato di "+euro(-bLeft), bLeft>=0?"good":"bad");
+    if(m.tb && m.isCur) tb+=row("Budget previsto a fine mese", bProj>=0? euro0(bProj) : "sforato di "+euro0(-bProj), bProj>=0?"good":"bad");
+    tb+=row("Entrate"+(m.isCur&&m.upInTot? " (incassate + attese)" : ""),"+"+euro(inAll),"good");
+    if(m.isCur && m.upInTot) tb+=row("&nbsp;&nbsp;· di cui attese (ricorrenze)","+"+euro0(m.upInTot));
+    tb+=row("Spese",euro(m.tot));
+    if(m.tb && inAll) tb+=row(m.isCur? "Quota di risparmio prevista (entrate − budget)" : "Quota di risparmio (entrate − budget)",euro0(inAll-m.tb),(inAll-m.tb)>=0?"good":"bad");
     if(m.isCur) tb+=row("<b>Spese previste a fine mese</b>","<b>"+euro0(m.proj)+"</b>",m.tb&&m.proj>m.tb?"bad":"")
       +row("&nbsp;&nbsp;· già fatte",euro0(m.tot))+row("&nbsp;&nbsp;· ricorrenze in arrivo",euro0(m.upTot))
-      +row("&nbsp;&nbsp;· stima per i "+(m.dim-m.dom)+" giorni restanti ("+euro0(m.pace)+"/giorno)",euro0(m.est))
-      +(m.tb? row(m.proj>m.tb? "&nbsp;&nbsp;→ sforamento previsto" : "&nbsp;&nbsp;→ budget che avanza",m.proj>m.tb? "+"+euro0(m.proj-m.tb) : euro0(m.tb-m.proj),m.proj>m.tb?"bad":"good") : "");
-    if(m.isCur && m.projIn) tb+=row("Risparmio previsto a fine mese",euro0(m.projSaving),m.projSaving>=0?"good":"bad");
+      +row("&nbsp;&nbsp;· stima per i "+(m.dim-m.dom)+" giorni restanti ("+euro0(m.pace)+"/giorno)",euro0(m.est));
+    if(!m.isCur && m.inTot) tb+=row("Risparmio del mese (entrate − spese)",euro(m.saving),m.saving>=0?"good":"bad")+(m.rate!==null? row("Tasso di risparmio",Math.round(m.rate*100)+"%") : "");
+    if(m.inv) tb+=row("di cui fuori: investimenti",euro(m.inv));
     if(pc) tb+=row(m.wait? "Accantonato (fino al mese scorso)" : "Accantonato totale",euro0(pc.pot),pc.pot>=0?"good":"bad");
     b+='<table class="mt">'+tb+'</table>'+
       (pc? '<p class="hint">Accantonato = '+(pc.set? 'quanto avevi messo da parte ('+euro0(pc.open)+') ' : 'partendo da zero ')+'+ entrate − spese di ogni mese da '+esc(monthName(pc.start))+'. Se sfori il budget, il risparmio accantonato scende. Gli investimenti restano fuori.'+(pc.set?'':' Puoi indicare il punto di partenza in Opzioni.')+'</p>' : '')+
@@ -1026,7 +1024,8 @@ function renderStats(){
 
   // 3. ultimi 12 mesi
   const f=sel? (ui.selSub? (e=>e.mac===sel && e.sub===ui.selSub) : (e=>e.mac===sel)) : null, months=[], vals=[], buds=[];
-  for(let k=11;k>=0;k--){ const mm=ymAdd(ui.ym,-k); months.push(mm); vals.push(sum(expsOf(mm,f))); buds.push(sel? 0 : totalBudget(mm)); }
+  const fData=firstDataYm();   // il budget si disegna solo dai mesi in cui usi l'app
+  for(let k=11;k>=0;k--){ const mm=ymAdd(ui.ym,-k); months.push(mm); vals.push(sum(expsOf(mm,f))); buds.push(sel || !fData || mm<fData ? 0 : totalBudget(mm)); }
   const nz=vals.filter(v=>v>0), mean=nz.length?nz.reduce((a,b)=>a+b,0)/nz.length:0;
   const W=340,H=176,L=46,Rt=6,T=12,B=24, cw=(W-L-Rt)/12, top=niceMax(Math.max(...vals,...buds,1)), y=v=>T+(H-T-B)*(1-v/top);
   let svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Andamento ultimi 12 mesi">';
@@ -1123,7 +1122,7 @@ function renderSettings(){
   v.querySelectorAll("[data-mc]").forEach(b=>{ b.onclick=()=>openMacSheet(b.getAttribute("data-mc")); });
   $("addRec").onclick=()=>openSheet(null,{freq:"m"});
   $("addRecIn").onclick=()=>openSheet(null,{freq:"m",income:true});
-  $("gSave").onclick=()=>{ const x=parseFloat(String($("gBud").value).replace(",",".")), v=isFinite(x)&&x>0?Math.round(x*100):0; const only=$("gOnly").checked; S.budget=setBudgetFor(S.budget,ymOf(today()),v,only); save(); render(); toast(v?"Budget: "+euro0(v)+(only?" solo questo mese":" al mese"):"Budget tolto"); };
+  $("gSave").onclick=()=>{ const x=parseFloat(String($("gBud").value).replace(",",".")), v=isFinite(x)&&x>0?Math.round(x*100):0; const only=$("gOnly").checked, cur=ymOf(today()), f0=firstDataYm(); S.budget = (!only && (!f0 || f0>=cur))? (v? [{from:"0000-00",amt:v}] : []) : setBudgetFor(S.budget,cur,v,only); save(); render(); toast(v?"Budget: "+euro0(v)+(only?" solo questo mese":" al mese"):"Budget tolto"); };
   $("gPot").onclick=()=>{ const x=parseFloat(String($("pAmt").value).replace(",",".")), f=String($("pFrom").value||"").slice(0,7); if(!isFinite(x)){ S.pot0=null; save(); render(); toast("Punto di partenza tolto"); return; } if(!/^\d{4}-\d{2}$/.test(f)){ toast("Indica il mese di partenza (AAAA-MM)"); return; } S.pot0={amt:Math.round(x*100),from:f}; save(); render(); toast("Accantonato iniziale: "+euro0(S.pot0.amt)+" da "+monthName(f)); };
   $("fxT").onchange=function(){ S.fx=this.checked; save(); applyFx(); };
   $("achT").onchange=function(){ S.achOn=this.checked; save(); };
