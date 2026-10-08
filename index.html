@@ -144,6 +144,7 @@ main{padding-block:6px 150px;display:flex;flex-direction:column;gap:16px}
 .row.upc .tile{border-style:dashed}
 .row.upc .amt{color:var(--muted)}
 .tag{font-size:10.5px;font-weight:600;border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-left:6px;color:var(--muted);vertical-align:1px;font-family:var(--body)}
+.chk{display:flex;gap:8px;align-items:center;margin:2px 0 12px;font-size:14px;color:var(--fg)}.chk input{width:20px;height:20px}
 .tag.chk{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,transparent)}
 .tag.in{color:var(--good);border-color:color-mix(in srgb,var(--good) 50%,transparent)}
 .tag.fin{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 50%,transparent)}
@@ -555,7 +556,7 @@ function median(a){ if(!a.length) return 0; const b=a.slice().sort((x,y)=>x-y), 
 
 /* ---------- stato e migrazioni ---------- */
 function freshMacs(){ return TAX.map(m=>({id:m.id, slot:m.slot, budgets:[], words:[], subWords:{}})); }
-function fresh(){ return { v:5, macs:freshMacs(), exps:[], ins:[], budget:[], recs:[], examples:false, lastBackup:null, persisted:false, fx:true, achOn:true, ach:{} }; }
+function fresh(){ return { v:5, macs:freshMacs(), exps:[], ins:[], budget:[], recs:[], examples:false, pot0:null, lastBackup:null, persisted:false, fx:true, achOn:true, ach:{} }; }
 /* formati 1 e 2 → 3 (budget unico → storico; tipo di categoria dal nome), come faceva la versione precedente */
 const V3_KIND = [[/spesa|alimentar|supermerc|mercat/,"grocery"],[/ristor|\bbar\b|pranz|cena|pizz|caff/,"food"],[/traspor|auto|benz|carbur|treno|\bbus\b|moto/,"transport"],[/casa|bollet|affitt|mutuo|utenz/,"home"],[/salut|farmac|medic/,"health"],[/svago|tempo libero|divert|cinema|hobby/,"fun"],[/tabac|sigar|fumo|svapo/,"tobacco"],[/cura|igien|barb|bellez|parrucch|cosmet/,"care"],[/abbigl|vestit|scarpe|moda/,"clothes"],[/abbonam|streaming/,"subs"],[/regal/,"gifts"],[/viagg|vacanz/,"travel"],[/sport|palestr/,"sport"],[/animal|cane|gatt|veterin/,"pets"],[/telef|internet|cellul/,"phone"],[/figli|bimb|bambin/,"kids"],[/libr|scuol|studi|univers/,"books"],[/altro|varie/,"other"]];
 function v3Kind(n){ n=norm(n); for(const g of V3_KIND) if(g[0].test(n)) return g[1]; return "custom"; }
@@ -625,6 +626,13 @@ function setBudget(m,amt){
   if(budgetOf(m,cur)===amt) return;
   m.budgets=m.budgets.filter(b=>b.from<cur); m.budgets.push({from:cur,amt});
 }
+function setBudgetFor(arr,ym,amt,only){
+  arr=(arr||[]).slice();
+  if(!arr.length){ return (!only && amt>0)? [{from:"0000-00",amt}] : (amt>0? [{from:ym,amt},{from:ymAdd(ym,1),amt:0}] : []); }
+  const nx=ymAdd(ym,1), after=budgetOf({budgets:arr},nx);
+  if(!only){ if(budgetOf({budgets:arr},ym)===amt) return arr; const a=arr.filter(x=>x.from<ym); a.push({from:ym,amt}); return a; }
+  const a=arr.filter(x=>x.from!==ym && x.from!==nx); a.push({from:ym,amt}); a.push({from:nx,amt:after}); return a.sort((p,q)=>p.from<q.from?-1:1);
+}
 const totalBudget = ym => budgetOf({budgets:S.budget||[]},ym);    // budget unico del mese: la parte dello stipendio destinata alle spese
 
 /* ---------- entrate ---------- */
@@ -664,6 +672,7 @@ function upcomingIn(ym){ const t=today(), from=iso(new Date(dateObj(t).getTime()
 
 /* ---------- analisi ---------- */
 const consumption = e => !isInvest(e);
+const stipOf = ym => (S.ins||[]).filter(e=>ymOf(e.date)===ym && e.kind==="stip").reduce((t,e)=>t+e.amt,0);
 const expsOf = (ym,f) => S.exps.filter(e=>ymOf(e.date)===ym && consumption(e) && (!f || f(e)));
 function byMac(list){ const m={}; list.forEach(e=>{ const k=e.mac||"__chk"; m[k]=(m[k]||0)+e.amt; }); return Object.keys(m).map(id=>({id,v:m[id]})).sort((a,b)=>b.v-a.v); }
 function monthCtx(ym){
@@ -677,10 +686,21 @@ function monthCtx(ym){
     if(n>=2){ rate=sp/dd; paceFrom="storico"; } }
   const proj = isCur ? Math.round(recTot+upTot+varTot+(rate!==null? rate*(dim-dom) : varTot/dom*(dim-dom))) : tot;
   const fin=S.exps.filter(e=>ymOf(e.date)===ym && isInvest(e));
-  const ins=insOf(ym), inTot=sum(ins), inv=sum(fin), saving=inTot-tot;
-  const projIn=inTot+upInTot, projSaving=projIn-proj;
+  const ins=insOf(ym), inTot=sum(ins), inv=sum(fin), saving=inTot-tot, stip=stipOf(ym), wait=isCur && !stip;   // wait: mese in corso senza stipendio registrato
+  const noSal=isCur && !stipOf(ym) && !upInTot, projIn=noSal?0:inTot+upInTot, projSaving=projIn-proj;   // senza stipendio né atteso, niente previsione di risparmio
   return {paceFrom,ym,list,tot,tb,isCur,dom,dim,pym,prevList,prevTot:sum(prevList),avg:tot/(isCur?dom:dim),proj,left:isCur?dim-dom+1:0,up,upTot,fin,
-    ins,inTot,upIn,upInTot,inv,saving,cash:saving-inv,rate:inTot?saving/inTot:null,projIn,projSaving,over:tb&&tot>tb?tot-tb:0};
+    ins,inTot,stip,wait,upIn,upInTot,inv,saving,cash:saving-inv,rate:(inTot&&!wait)?saving/inTot:null,projIn,projSaving,over:tb&&tot>tb?tot-tb:0,quota:tb?inTot-tb:null};
+}
+/* risparmio accantonato (cumulativo): apertura + per ogni mese (entrate − spese). Il mese in corso conta solo da quando c'è lo stipendio. */
+function potCtx(ym){
+  const cur=ymOf(today()), p0=S.pot0 && /^\d{4}-\d{2}$/.test(S.pot0.from||"")? S.pot0 : null;
+  const ds=[...S.exps.filter(consumption).map(e=>ymOf(e.date)), ...(S.ins||[]).map(e=>ymOf(e.date))].sort();
+  const start=p0? p0.from : ds[0]; if(!start) return null;
+  let pot=p0? p0.amt : 0, n=0, waiting=false;
+  for(let mm=start, k=0; mm<=ym && k<600; mm=ymAdd(mm,1), k++){
+    if(mm===cur && !stipOf(mm)){ waiting=true; continue; }
+    const t=sum(insOf(mm))-sum(expsOf(mm)); if(t||insOf(mm).length||expsOf(mm).length) n++; pot+=t; }
+  return {pot, open:p0? p0.amt : 0, start, months:n, waiting, set:!!p0};
 }
 /* riepilogo dei mesi chiusi dell'anno: risparmio, tasso, mesi sopra budget e sforamento totale */
 function yearCtx(y){
@@ -850,7 +870,7 @@ function hudHTML(m){
     h+='<div class="life"><div class="lt"><span>'+(rest>=0?"Budget rimasto":"Sforamento")+(m.isCur&&rest>0?" · "+euro0(rest/m.left)+" al giorno":"")+'</span><b>'+(rest>=0? euro0(rest)+" / "+euro0(m.tb) : "+"+euro0(-rest)+" oltre "+euro0(m.tb))+'</b></div>'+segHTML(rest/m.tb,cls)+'</div>'; }
   h+='<div class="mix" aria-hidden="true">'+parts.map(p=>'<i style="flex-grow:'+p.v+';background:'+macCol(p.id)+'"></i>').join("")+'</div><div class="hstats">';
   h+='<div><span class="l">Entrate</span><span class="v good">'+(m.inTot?"+"+euro0(m.inTot):"—")+'</span></div>';
-  h+='<div><span class="l">'+(m.isCur?"Risparmio finora":"Risparmio")+'</span><span class="v '+(m.inTot?(m.saving>=0?"good":"bad"):"")+'">'+(m.inTot? euro0(m.saving) : "—")+'</span></div>';
+  h+= m.wait? '<div><span class="l">Stipendio</span><span class="v">in attesa</span></div>' : '<div><span class="l">'+(m.isCur?"Risparmio finora":"Risparmio")+'</span><span class="v '+(m.inTot?(m.saving>=0?"good":"bad"):"")+'">'+(m.inTot? euro0(m.saving) : "—")+'</span></div>';
   h+= m.isCur ? '<div><span class="l">Risparmio previsto</span><span class="v '+(m.projIn?(m.projSaving>=0?"good":"bad"):"")+'">'+(m.projIn? euro0(m.projSaving) : "—")+'</span></div>'
               : '<div><span class="l">Tasso di risparmio</span><span class="v '+(m.rate!==null?(m.rate>=0?"good":"bad"):"")+'">'+(m.rate!==null? Math.round(m.rate*100)+"%" : "—")+'</span></div>';
   return h+'</div></div></section>';
@@ -859,7 +879,7 @@ function hudHTML(m){
 /* ---------- schede "da sapere" (solo con dati sufficienti) ---------- */
 function insightsHTML(m){
   const out=[];
-  if(m.over) out.push({id:"fin", t:"Budget superato di "+euro0(m.over), s:euro0(m.tot)+" spesi su "+euro0(m.tb)+(m.inTot?" · il risparmio scende a "+euro0(m.saving):""), tone:"bad", w:2e9});
+  if(m.over) out.push({id:"fin", t:"Budget superato di "+euro0(m.over), s:euro0(m.tot)+" spesi su "+euro0(m.tb)+(m.inTot&&!m.wait?" · il risparmio del mese scende a "+euro0(m.saving):""), tone:"bad", w:2e9});
   else if(m.isCur && m.tb && m.proj>m.tb) out.push({id:"fin", t:"Al ritmo attuale sfori di "+euro0(m.proj-m.tb), s:"Proiezione di fine mese "+euro0(m.proj)+" su un budget di "+euro0(m.tb), tone:"bad", w:1.5e9});
   TAX.forEach(t=>{ if(t.id==="fin") return; const a=analyze(e=>e.mac===t.id, m.ym);
     if(a.decomp){ const x=decompText(a.decomp, t.name); out.push({id:t.id, t:x.head, s:x.body, tone:a.decomp.d>0?"bad":"good", w:Math.abs(a.decomp.d)}); }
@@ -920,16 +940,30 @@ function renderStats(){
 
   // 0. risparmio: entrate, spese, sforamento; 12 mesi di risparmio (barre sopra e sotto lo zero)
   {
-    const yc=yearCtx(ui.ym.slice(0,4)); let b='';
+    const yc=yearCtx(ui.ym.slice(0,4)); let b=''; const pc=potCtx(ui.ym);
     const row=(l,v,cls)=>'<tr><td>'+l+'</td><td'+(cls?' style="color:var(--'+cls+')"':'')+'>'+v+'</td></tr>';
-    if(!m.inTot && !m.upInTot) b+='<p class="hint">Nessuna entrata registrata a '+esc(monthName(ui.ym,{month:"long"}))+'. Aggiungi lo stipendio con + (scrivi «stipendio 2400») per vedere risparmio e tasso.</p>';
-    b+='<table class="mt">'+row("Entrate","+"+euro(m.inTot),"good")+row("Spese",euro(m.tot))+(m.inv?row("di cui fuori: investimenti",euro(m.inv)):"")+
-      (m.inTot? row("Risparmio (entrate − spese)",euro(m.saving),m.saving>=0?"good":"bad")+row("Tasso di risparmio",Math.round(m.rate*100)+"%")+(m.inv?row("Saldo dopo gli investimenti",euro(m.cash),m.cash>=0?"good":"bad"):"") : "")+
-      (m.tb? row("Budget del mese",euro0(m.tb))+row("Sforamento",m.over?"+"+euro(m.over):"nessuno",m.over?"bad":"good")+(m.inTot?row("Risparmio previsto dal budget",euro0(m.inTot+(m.isCur?m.upInTot:0)-m.tb)):"") : "")+
-      (m.isCur && m.projIn? row("Risparmio previsto a fine mese",euro0(m.projSaving),m.projSaving>=0?"good":"bad") : "")+'</table>'+
+    const mn=esc(monthName(ui.ym,{month:"long"}));
+    if(!m.inTot && !m.upInTot) b+='<p class="hint">Nessuna entrata registrata a '+mn+'. Aggiungi lo stipendio con + (scrivi «stipendio 2400»): il risparmio si calcola da lì.</p>';
+    else if(m.wait) b+='<p class="hint">Lo stipendio di '+mn+' non è ancora registrato: il risparmio del mese si calcola quando lo inserisci, per non confrontare le spese con entrate parziali.</p>';
+    let tb='';
+    if(m.tb && !m.wait && m.inTot){
+      tb=row("Stipendio"+(m.inTot>m.stip?" e altre entrate":""),"+"+euro(m.inTot),"good")+row("Budget del mese","− "+euro0(m.tb))+row("Quota di risparmio (entrate − budget)",euro0(m.quota),m.quota>=0?"good":"bad")
+        +row("Spese del mese",euro(m.tot))+(m.over? row("Sforamento (erode il risparmio)","− "+euro(m.over),"bad") : row("Budget non speso (si aggiunge)","+ "+euro(m.tb-m.tot),"good"))
+        +row("Risparmio del mese",euro(m.saving),m.saving>=0?"good":"bad")+row("Tasso di risparmio",Math.round(m.rate*100)+"%")+(m.inv?row("di cui fuori: investimenti",euro(m.inv)):"");
+    } else {
+      tb=(m.inTot? row("Entrate finora","+"+euro(m.inTot),"good") : "")+(m.tb? row("Budget del mese",euro0(m.tb)) : "")+row("Spese",euro(m.tot))
+        +(m.tb? (m.over? row("Sforamento","+"+euro(m.over),"bad") : row("Budget rimasto",euro(m.tb-m.tot),"good")) : "")
+        +(m.wait && m.upInTot? row("Stipendio atteso (ricorrenza)","+"+euro0(m.upInTot)) : "")
+        +(!m.wait && m.inTot? row("Risparmio (entrate − spese)",euro(m.saving),m.saving>=0?"good":"bad")+(m.rate!==null? row("Tasso di risparmio",Math.round(m.rate*100)+"%") : "") : "")
+        +(m.inv?row("di cui fuori: investimenti",euro(m.inv)):"");
+    }
+    if(m.isCur && m.projIn) tb+=row("Risparmio previsto a fine mese",euro0(m.projSaving),m.projSaving>=0?"good":"bad");
+    if(pc) tb+=row(m.wait? "Accantonato (fino al mese scorso)" : "Accantonato totale",euro0(pc.pot),pc.pot>=0?"good":"bad");
+    b+='<table class="mt">'+tb+'</table>'+
+      (pc? '<p class="hint">Accantonato = '+(pc.set? 'quanto avevi messo da parte ('+euro0(pc.open)+') ' : 'partendo da zero ')+'+ entrate − spese di ogni mese da '+esc(monthName(pc.start))+'. Se sfori il budget, il risparmio accantonato scende. Gli investimenti restano fuori.'+(pc.set?'':' Puoi indicare il punto di partenza in Opzioni.')+'</p>' : '')+
       (m.isCur? '<p class="hint">Previsione: spese già fatte + ricorrenze in arrivo + '+(m.paceFrom==="storico"?"la tua media giornaliera degli ultimi 3 mesi":"il ritmo di questo mese (servono 2 mesi di storia per una stima più stabile)")+' per i giorni restanti.</p>' : '');
     // grafico: risparmio di ciascuno degli ultimi 12 mesi
-    const ms=[], sv=[]; for(let k=11;k>=0;k--){ const mm=ymAdd(ui.ym,-k), c=monthCtx(mm); ms.push(mm); sv.push(c.inTot? c.saving : null); }
+    const ms=[], sv=[]; for(let k=11;k>=0;k--){ const mm=ymAdd(ui.ym,-k), c=monthCtx(mm); ms.push(mm); sv.push(c.inTot && !c.wait? c.saving : null); }
     if(sv.filter(x=>x!==null).length>=2){
       const W=340,H=150,L=46,Rt=6,T=12,B=22, cw=(W-L-Rt)/12, mx=Math.max(1,...sv.map(x=>Math.abs(x||0))), top=niceMax(mx), lo=Math.min(0,...sv.map(x=>x||0))<0? -top : 0;
       const y=v=>T+(H-T-B)*(top-v)/(top-lo);
@@ -940,7 +974,7 @@ function renderStats(){
       b+='<div class="chartbox">'+g+'</svg></div><p class="hint">Risparmio di ogni mese con entrate registrate: verde sopra lo zero, rosso sotto.</p>';
     }
     if(yc.months) b+='<div class="msg '+(yc.saving>=0?"good":"bad")+'"><b>'+ui.ym.slice(0,4)+', mesi chiusi ('+yc.months+'):</b> risparmiati '+euro0(yc.saving)+(yc.rate!==null?' ('+Math.round(yc.rate*100)+'% delle entrate)':'')+'. '+(yc.overMonths? yc.overMonths+(yc.overMonths>1?" mesi":" mese")+' sopra budget, sforamento totale '+euro0(yc.overTot)+'.' : 'Nessun mese sopra budget.')+'</div>';
-    h+=win("Risparmio", m.rate!==null? Math.round(m.rate*100)+"%" : "", b);
+    h+=win("Risparmio", (pc? "tot. "+euro0(pc.pot) : (m.rate!==null? Math.round(m.rate*100)+"%" : "")), b);
   }
 
   // 1. dove vanno i soldi (macro-categorie; le grigie riunite)
@@ -1041,10 +1075,13 @@ function renderStats(){
 let armed=null;
 function renderSettings(){
   const recs=(S.recs||[]).slice().sort((a,b)=>(recActive(b)-recActive(a))||((nextOcc(a)||"9")<(nextOcc(b)||"9")?-1:1)), act=recs.filter(r=>recActive(r) && !isInvest(r) && r.dir!=="in");
-  let bg='<div class="field"><label for="gBud">Budget mensile per le spese, in euro</label><input type="number" inputmode="decimal" min="0" id="gBud" value="'+(totalBudget(ymOf(today()))?Math.round(totalBudget(ymOf(today()))/100):"")+'" placeholder="Nessun limite"></div><p class="hint">È la parte dello stipendio che destini alle spese; il resto è risparmio. Una modifica vale da '+esc(monthName(ymOf(today())))+' in poi: i mesi passati restano confrontati con il budget di allora.</p>';
+  let bg='<div class="field"><label for="gBud">Budget mensile per le spese, in euro</label><input type="number" inputmode="decimal" min="0" id="gBud" value="'+(totalBudget(ymOf(today()))?Math.round(totalBudget(ymOf(today()))/100):"")+'" placeholder="Nessun limite"></div><p class="hint">È la parte dello stipendio che destini alle spese; il resto è risparmio. Una modifica vale da '+esc(monthName(ymOf(today())))+' in poi, oppure solo per questo mese se spunti la casella: i mesi passati restano confrontati con il budget di allora.</p><label class="chk"><input type="checkbox" id="gOnly"> Solo per '+esc(monthName(ymOf(today()),{month:"long"}))+'</label>';
   if((S.budget||[]).length>1) bg+='<ul class="hist num">'+S.budget.slice().reverse().map(b=>'<li>'+(b.from==="0000-00"?"All'inizio":"Da "+esc(monthName(b.from)))+': '+(b.amt?euro0(b.amt):"nessun limite")+'</li>').join("")+'</ul>';
   bg+='<button class="btn primary" id="gSave">Salva budget</button>';
+  const p0=S.pot0, pcn=potCtx(ymOf(today()));
+  let pg='<div class="field"><label for="pAmt">Risparmio già messo da parte, in euro</label><input type="number" inputmode="decimal" id="pAmt" value="'+(p0?(p0.amt/100):"")+'" placeholder="0"></div><div class="field"><label for="pFrom">Contato da (mese)</label><input type="month" id="pFrom" value="'+esc(p0?p0.from:ymOf(today()))+'"></div><p class="hint">È il punto di partenza del risparmio accantonato (conto, salvadanaio). Da quel mese l\'app aggiunge entrate − spese di ogni mese e lo toglie se sfori. Lascia vuoto per partire da zero.</p><button class="btn primary" id="gPot">Salva punto di partenza</button>';
   let h0=win("Budget", totalBudget(ymOf(today()))? euro0(totalBudget(ymOf(today())))+"/mese" : "", bg);
+  h0+=win("Risparmio accantonato", pcn? euro0(pcn.pot) : "", pg);
   let r= recs.length ? '<div class="list">'+recs.map(x=>{ const nx=recActive(x)?nextOcc(x):null, inc=x.dir==="in"; return '<button class="litem" data-rc="'+x.id+'"'+(recActive(x)?'':' style="opacity:.55"')+'>'+(inc?'<span class="tile" style="color:var(--good)">'+px("coin")+'</span>':tileHTML(x.mac))+'<span class="txt"><b>'+esc(x.note||(inc?INK[x.kind]:subName(x.mac,x.sub)||macName(x.mac)))+'</b><span class="num">'+(inc?"+":"")+euro(x.amt)+' · '+esc(FREQ[x.freq].toLowerCase())+(nx?' · prossima '+esc(shortDate(nx)):(recActive(x)?'':' · interrotta'))+(PER_YEAR[x.freq]!==12?' · '+euro0(monthlyEq(x))+'/mese':'')+'</span></span><svg class="ico" style="color:var(--muted)" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>'; }).join("")+'</div>'
     : '<p class="hint">Stipendio, affitto, abbonamenti, rate: inseriscili una volta e l\'app li registra da sola a ogni scadenza.</p>';
   r+='<div class="btns"><button class="btn" id="addRec">'+px("rec")+'Spesa</button><button class="btn" id="addRecIn">'+px("coin")+'Entrata</button></div>';
@@ -1073,7 +1110,8 @@ function renderSettings(){
   v.querySelectorAll("[data-mc]").forEach(b=>{ b.onclick=()=>openMacSheet(b.getAttribute("data-mc")); });
   $("addRec").onclick=()=>openSheet(null,{freq:"m"});
   $("addRecIn").onclick=()=>openSheet(null,{freq:"m",income:true});
-  $("gSave").onclick=()=>{ const x=parseFloat(String($("gBud").value).replace(",",".")), v=isFinite(x)&&x>0?Math.round(x*100):0; const o={budgets:S.budget||[]}; setBudget(o,v); S.budget=o.budgets; save(); render(); toast(v?"Budget: "+euro0(v)+" al mese":"Budget tolto"); };
+  $("gSave").onclick=()=>{ const x=parseFloat(String($("gBud").value).replace(",",".")), v=isFinite(x)&&x>0?Math.round(x*100):0; const only=$("gOnly").checked; S.budget=setBudgetFor(S.budget,ymOf(today()),v,only); save(); render(); toast(v?"Budget: "+euro0(v)+(only?" solo questo mese":" al mese"):"Budget tolto"); };
+  $("gPot").onclick=()=>{ const x=parseFloat(String($("pAmt").value).replace(",",".")), f=String($("pFrom").value||"").slice(0,7); if(!isFinite(x)){ S.pot0=null; save(); render(); toast("Punto di partenza tolto"); return; } if(!/^\d{4}-\d{2}$/.test(f)){ toast("Indica il mese di partenza (AAAA-MM)"); return; } S.pot0={amt:Math.round(x*100),from:f}; save(); render(); toast("Accantonato iniziale: "+euro0(S.pot0.amt)+" da "+monthName(f)); };
   $("fxT").onchange=function(){ S.fx=this.checked; save(); applyFx(); };
   $("achT").onchange=function(){ S.achOn=this.checked; save(); };
   $("bk").onclick=()=>{ download("spicciolo-backup-"+today()+".json", JSON.stringify(S,null,1), "application/json"); S.lastBackup=Date.now(); save(); renderNotices(); renderSettings(); };
