@@ -373,6 +373,29 @@ details.more[open] summary{margin-bottom:8px}
   @keyframes esm{0%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-3px)}}
 }
 .brand{touch-action:manipulation}
+
+/* filtro del periodo dei grafici */
+.pfilter{display:flex}
+.pbtn{flex:1;min-width:0;display:flex;align-items:center;gap:10px;text-align:left;border:1.5px solid var(--edge);border-radius:8px;background:var(--surface);padding:9px 12px;box-shadow:3px 3px 0 var(--hard)}
+.pbtn>.px{width:18px;height:18px;color:var(--accent);flex:none}
+.pbtn>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.pbtn b{font-family:var(--pixel);font-weight:600;font-size:14px;letter-spacing:.03em;text-transform:uppercase}
+.pbtn>span>span{font-size:12px;color:var(--muted)}
+.prs{display:flex;flex-direction:column;border:1.5px solid var(--line);border-radius:6px;overflow:hidden}
+.prow{display:flex;align-items:center;gap:10px;padding:10px 12px;background:none;border:0;border-top:1px solid var(--line);text-align:left;font-size:14px}
+.prow:first-child{border-top:0}
+.prs .ck{width:16px;flex:none;font-weight:700;color:var(--accent)}
+.prow .sm{margin-left:auto;font-size:12px;color:var(--muted)}
+.prow[aria-pressed="true"]{font-weight:600;background:var(--surface2)}
+.pcus{display:grid;grid-template-columns:16px 1fr;gap:8px 10px;padding:10px 12px;border-top:1.5px solid var(--line);font-size:14px}
+.pcus.on{background:var(--surface2);font-weight:600}
+.pcus .daterow,.pcus .btn{grid-column:1/-1}
+.pcus input{min-width:0}
+.seg4{display:grid;grid-template-columns:repeat(4,1fr);border:1.5px solid var(--edge);border-radius:6px;overflow:hidden}
+.seg4 button{border:0;background:var(--surface);padding:9px 2px;font-weight:600;font-size:13px;min-width:0}
+.seg4 button+button{border-left:1.5px solid var(--edge)}
+.seg4 button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.tip.r{transform:translate(-100%,-100%)}.tip.l{transform:translate(0,-100%)}
 </style>
 
 <header class="top"><div class="wrap">
@@ -887,7 +910,7 @@ function clearExamples(){
 }
 
 /* ---------- interfaccia ---------- */
-const ui = { tab:"list", ym: ymOf(today()), sel:null, selSub:null, bar:null, day:null };
+const ui = { tab:"list", ym: ymOf(today()), sel:null, selSub:null, tip:null, day:null };
 let tT;
 function toast(msg, ach){ const t=$("toast"); t.innerHTML=(ach?'<b>TRAGUARDO</b>':'')+esc(msg); t.hidden=true; void t.offsetWidth; t.hidden=false; clearTimeout(tT); tT=setTimeout(()=>{ t.hidden=true; }, ach?3600:2600); }
 function fxOn(){ return S.fx!==false && !matchMedia("(prefers-reduced-motion: reduce)").matches; }
@@ -917,18 +940,19 @@ function renderNotices(){
 /* ---------- voci personalizzabili: recap risparmio e HUD ---------- */
 const VDEF = { recap:["entrate","spese","budget","saldo","rispPrev"], hud:["entrate","rispPrev"] };
 function V(){ const v=S.view||{}; return { recap: Array.isArray(v.recap)? v.recap : VDEF.recap.slice(), chart: v.chart!==false, year: v.year!==false,
-  hud: Array.isArray(v.hud)? v.hud.slice(0,4) : VDEF.hud.slice(), hudBar: v.hudBar!==false, hudMix: v.hudMix!==false }; }
+  hud: Array.isArray(v.hud)? v.hud.slice(0,4) : VDEF.hud.slice(), hudBar: v.hudBar!==false, hudMix: v.hudMix!==false,
+  rng: Object.assign({p:"12m", g:"auto"}, v.rng||{}), charts: Object.assign({save: v.chart!==false, mix:true, trend:true, budget:true, top:true, cal:true}, v.charts||{}) }; }
 function setV(p){ S.view=Object.assign(V(), p); save(); }
 const PAST_MAP = { saldoPrev:"saldo", spesePrev:"spese", rispPrev:"rispMese" };   // nei mesi chiusi le voci previste diventano il dato effettivo
 const MET = [   // ordine fisso di visualizzazione
   {k:"entrate",  name:"Entrate",            desc:"Stipendio e altre entrate; nel mese in corso anche quelle attese", hud:1},
   {k:"spese",    name:"Spese",              desc:"Spese già fatte nel mese"},
   {k:"budget",   name:"Budget",             desc:"Il budget del mese", hud:1},
-  {k:"saldo",    name:"Saldo",              desc:"Budget meno spese già fatte", hud:1},
-  {k:"saldoPrev",name:"Saldo previsto",     desc:"Budget meno spese previste a fine mese", hud:1},
+  {k:"saldo",    name:"Budget residuo",     desc:"Budget meno spese già fatte", hud:1},
+  {k:"saldoPrev",name:"Budget residuo previsto", desc:"Budget meno spese previste a fine mese", hud:1},
   {k:"quota",    name:"Quota di risparmio", desc:"Entrate meno budget", hud:1},
   {k:"spesePrev",name:"Spese previste",     desc:"Già fatte + ricorrenze in arrivo + stima dei giorni restanti", hud:1},
-  {k:"rispPrev", name:"Risparmio previsto", desc:"(Entrate − budget) + saldo previsto, cioè entrate meno spese previste", hud:1},
+  {k:"rispPrev", name:"Risparmio previsto", desc:"(Entrate − budget) + budget residuo previsto, cioè entrate meno spese previste", hud:1},
   {k:"rispMese", name:"Risparmio del mese", desc:"Entrate meno spese già fatte", hud:1},
   {k:"tasso",    name:"Tasso di risparmio", desc:"Risparmio del mese diviso entrate", hud:1},
   {k:"accant",   name:"Accantonato",        desc:"Il totale messo da parte, mese dopo mese", hud:1},
@@ -945,8 +969,8 @@ function metVal(k,m,pc){
     case "entrate":  return Object.assign(E("Entrate",inAll,"good",true,"+"), {subs: cur&&m.upInTot? [["di cui attese","+"+euro0(m.upInTot)]] : null});
     case "spese":    return E("Spese",m.tot,"",true);
     case "budget":   return E("Budget",tb,"",false);
-    case "saldo":    return E("Saldo",tb-m.tot,sg(tb-m.tot),true);
-    case "saldoPrev":return E("Saldo previsto",tb-m.proj,sg(tb-m.proj),false);
+    case "saldo":    return E("Budget residuo",tb-m.tot,sg(tb-m.tot),true);
+    case "saldoPrev":return E("Budget residuo previsto",tb-m.proj,sg(tb-m.proj),false);
     case "quota":    return E("Quota di risparmio",inAll-tb,sg(inAll-tb),false);
     case "spesePrev":return Object.assign(E("Spese previste",m.proj,tb&&m.proj>tb?"bad":"",false), {subs:[["già fatte",euro0(m.tot)],["ricorrenze in arrivo",euro0(m.upTot)],["stima per i "+(m.dim-m.dom)+" giorni restanti ("+euro0(m.pace)+"/giorno)",euro0(m.est)]]});
     case "rispPrev": return E("Risparmio previsto",inAll-m.proj,sg(inAll-m.proj),false);
@@ -957,6 +981,68 @@ function metVal(k,m,pc){
     case "invest":   return E("Investimenti",m.inv,"",true);
   }
   return NA(k,"");
+}
+
+
+/* ---------- periodo dei grafici: un solo filtro per tutti i grafici della pagina Analisi ---------- */
+const addDays = (s,k) => { const d=dateObj(s); d.setDate(d.getDate()+k); return iso(d); };
+const fmtD = (s,y) => dateObj(s).toLocaleDateString("it-IT", y? {day:"numeric",month:"short",year:"numeric"} : {day:"numeric",month:"short"});
+const PRESETS = [["mese","Mese selezionato"],["7g","Ultimi 7 giorni"],["30g","Ultimi 30 giorni"],["3m","Ultimi 3 mesi"],["6m","Ultimi 6 mesi"],["12m","Ultimi 12 mesi"],["anno","Da inizio anno"],["tutto","Tutto lo storico"]];
+const GN = {g:"per giorno", s:"per settimana", m:"per mese"};
+function rangeRes(){
+  const r=V().rng, cur=ymOf(today()), lastD=ui.ym+"-"+pad(daysIn(ui.ym)), endD= ui.ym===cur? today() : lastD;
+  let from, to, label;
+  switch(r.p){
+    case "mese": from=ui.ym+"-01"; to=lastD; label=monthName(ui.ym,{month:"short",year:"numeric"}); break;
+    case "7g":   to=endD; from=addDays(to,-6);  label="7 giorni"; break;
+    case "30g":  to=endD; from=addDays(to,-29); label="30 giorni"; break;
+    case "3m": case "6m": case "12m": { const n=parseInt(r.p,10); from=ymAdd(ui.ym,-(n-1))+"-01"; to=lastD; label=n+" mesi"; break; }
+    case "anno": from=ui.ym.slice(0,4)+"-01-01"; to=lastD; label="da inizio "+ui.ym.slice(0,4); break;
+    case "tutto": { const d=[...S.exps.map(e=>e.date),...(S.ins||[]).map(e=>e.date)].sort()[0]; from= d && d<ui.ym+"-01"? d : ui.ym+"-01"; to=lastD; label="tutto lo storico"; break; }
+    default: { let x=/^\d{4}-\d{2}-\d{2}$/.test(r.from||"")? r.from : ui.ym+"-01", y=/^\d{4}-\d{2}-\d{2}$/.test(r.to||"")? r.to : lastD; if(x>y){ const t=x; x=y; y=t; }
+      from=x; to=y; label=fmtD(x, x.slice(0,4)!==y.slice(0,4))+" – "+fmtD(y, x.slice(0,4)!==y.slice(0,4)); }
+  }
+  return {from, to, days:dayDiff(from,to)+1, label, p:r.p, text:fmtD(from, from.slice(0,4)!==to.slice(0,4))+" – "+fmtD(to,true)};
+}
+function bucketize(from,to,g){ const out=[]; let s=from, k=0;
+  while(s<=to && k<3000){ let e;
+    if(g==="g") e=s; else if(g==="s") e=addDays(s, 6-(dateObj(s).getDay()+6)%7); else e=ymOf(s)+"-"+pad(daysIn(ymOf(s)));
+    if(e>to) e=to; out.push({from:s,to:e}); s=addDays(e,1); k++; }
+  return out; }
+function granOf(R){ const want=V().rng.g||"auto"; let g= want!=="auto"? want : (R.days<=31?"g" : R.days<=119?"s" : "m"), note="";
+  if(g==="g" && R.days>62){ g="s"; note="troppi giorni: raggruppati per settimana"; }
+  if(g==="s" && bucketize(R.from,R.to,"s").length>62){ g="m"; note="troppe settimane: raggruppati per mese"; }
+  return {g, note}; }
+// budget del periodo: per ogni mese, la quota dei giorni compresi (mesi interi = budget pieno); prima dell'uso dell'app vale 0
+function budgetBetween(from,to){ const f0=firstDataYm(); if(!f0) return 0; let t=0;
+  for(let ym=ymOf(from); ym<=ymOf(to); ym=ymAdd(ym,1)){ if(ym<f0) continue;
+    const x= ym===ymOf(from)? from : ym+"-01", y= ym===ymOf(to)? to : ym+"-"+pad(daysIn(ym));
+    t+=totalBudget(ym)*(dayDiff(x,y)+1)/daysIn(ym); }
+  return Math.round(t); }
+function bkLabel(b,g,long){
+  if(g==="g") return long? dateObj(b.from).toLocaleDateString("it-IT",{weekday:"short",day:"numeric",month:"short",year:"numeric"}) : String(+b.from.slice(8));
+  if(g==="s") return long? (b.from===b.to? fmtD(b.from,true) : fmtD(b.from)+" – "+fmtD(b.to,true)) : (+b.from.slice(8))+"/"+(+b.from.slice(5,7));
+  const ym=ymOf(b.from), whole= b.from.slice(8)==="01" && b.to===ym+"-"+pad(daysIn(ym));
+  return long? monthName(ym)+(whole?"":" ("+(+b.from.slice(8))+"–"+(+b.to.slice(8))+")") : monthName(ym,{month:"short"}).slice(0,3);
+}
+// barre per intervalli: valori positivi (o positivi e negativi), linea del budget a gradini, media tratteggiata, valore al tocco
+function barsSVG(id,bk,vals,g,o){
+  o=o||{}; const n=vals.length, W=340,H=176,Rt=6,T=12,B=24, td=today(), bud=o.bud||[];
+  const pos=Math.max(0,...vals,...bud), neg=Math.max(0,...vals.map(v=>-v)), top=niceMax(Math.max(1,pos,o.div?neg:0)), lo= o.div && neg>0 ? -top : 0;
+  const L=Math.max(40, Math.ceil(Math.max(euro0(top).length, euro0(lo).length)*6.1)+10), cw=(W-L-Rt)/Math.max(1,n);
+  const y=v=>T+(H-T-B)*(top-v)/(top-lo);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(o.aria||"")+'">';
+  (lo? [top,0,lo] : [top,top/2,0]).forEach(q=>{ const yy=y(q).toFixed(1); s+='<line x1="'+L+'" x2="'+(W-Rt)+'" y1="'+yy+'" y2="'+yy+'" stroke="'+(q===0&&lo?"var(--muted)":"var(--line)")+'"/><text x="'+(L-6)+'" y="'+(+yy+3.5)+'" text-anchor="end" font-size="10" font-family="IBM Plex Mono, monospace" fill="var(--muted)">'+euro0(q).replace(/\s/g," ")+'</text>'; });
+  const chars= g==="g"? 2 : g==="s"? 5 : 3, k=Math.max(1,Math.ceil((chars*6+6)/cw)), sel= ui.tip && ui.tip.id===id ? ui.tip.i : null;
+  vals.forEach((v,i)=>{ const b=bk[i], x=L+i*cw+cw*.18, bw=Math.max(1,cw*.64);
+    if(v && b.from<=td){ const y0=y(0), y1=y(v); s+='<rect x="'+x.toFixed(1)+'" y="'+Math.min(y0,y1).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(.6,Math.abs(y1-y0)).toFixed(1)+'" fill="'+(o.div? (v>=0?"var(--good)":"var(--bad)") : (o.col||"var(--accent)"))+'" fill-opacity="'+(sel===i || (sel===null && i===n-1)? 1 : .5)+'"/>'; }
+    s+='<rect data-bar="'+id+':'+i+'" x="'+(L+i*cw).toFixed(1)+'" y="'+T+'" width="'+cw.toFixed(1)+'" height="'+(H-T)+'" fill="transparent" style="cursor:pointer"><title>'+esc(cap(bkLabel(b,g,true)))+': '+euro(v)+'</title></rect>';
+    if((n-1-i)%k===0) s+='<text x="'+(L+i*cw+cw/2).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="'+(i===n-1?"var(--fg)":"var(--muted)")+'" font-weight="'+(i===n-1?700:400)+'">'+esc(bkLabel(b,g,false))+'</text>'; });
+  if(o.mean>0) s+='<line x1="'+L+'" x2="'+(W-Rt)+'" y1="'+y(o.mean).toFixed(1)+'" y2="'+y(o.mean).toFixed(1)+'" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 4"/>';
+  if(bud.some(x=>x>0)){ let d=""; bud.forEach((bv,i)=>{ if(!bv) return; const x0=L+i*cw, x1=x0+cw, yy=y(bv).toFixed(1); d+=(d&&bud[i-1]?"L":"M")+x0.toFixed(1)+" "+yy+"L"+x1.toFixed(1)+" "+yy; }); s+='<path d="'+d+'" fill="none" stroke="var(--warn)" stroke-width="2"/>'; }
+  s+='</svg>';
+  let tip=""; if(sel!==null && bk[sel]){ const v=vals[sel], px0=(L+sel*cw+cw/2)/W; tip='<div class="tip'+(px0>.7?" r":px0<.3?" l":"")+'" style="left:'+(px0*100).toFixed(1)+'%;top:'+(y(Math.max(v,0))/H*100).toFixed(1)+'%">'+esc(cap(bkLabel(bk[sel],g,true)))+' · '+euro(v)+(bud[sel]?' · budget '+euro0(bud[sel]):'')+'</div>'; }
+  return '<div class="chartbox">'+s+tip+'</div>';
 }
 
 /* ---------- segreti: tre personaggi originali in pixel art ---------- */
@@ -998,7 +1084,7 @@ function hudHTML(m){
   if(d!==null) h+='<span class="chip '+(d>0?"up":"down")+'" title="Rispetto al mese prima'+(m.isCur?", stesso periodo":"")+'">'+(d>0?"▲ +":"▼ ")+Math.round(d*100)+'% vs '+esc(monthName(m.pym,{month:"short"}))+'</span>';
   h+='</div>';
   if(v.hudBar && m.tb){ const rest=m.tb-m.tot, cls= m.tot>m.tb?"bad":(m.tot>=m.tb*.8?"warn":"");
-    h+='<div class="life"><div class="lt"><span>'+(rest>=0?"Saldo":"Sforamento")+(m.isCur&&rest>0?" · "+euro0(rest/m.left)+" al giorno":"")+'</span><b>'+(rest>=0? euro0(rest)+" / "+euro0(m.tb) : "+"+euro0(-rest)+" oltre "+euro0(m.tb))+'</b></div>'+segHTML(rest/m.tb,cls)+(m.isCur?'<div class="lt"><span>Previste a fine mese</span><b style="color:'+(m.proj>m.tb?'#FF8A7A':'var(--hud-fg)')+'">'+euro0(m.proj)+' / '+euro0(m.tb)+'</b></div>':'')+'</div>'; }
+    h+='<div class="life"><div class="lt"><span>'+(rest>=0?"Budget residuo":"Sforamento")+(m.isCur&&rest>0?" · "+euro0(rest/m.left)+" al giorno":"")+'</span><b>'+(rest>=0? euro0(rest)+" / "+euro0(m.tb) : "+"+euro0(-rest)+" oltre "+euro0(m.tb))+'</b></div>'+segHTML(rest/m.tb,cls)+(m.isCur?'<div class="lt"><span>Previste a fine mese</span><b style="color:'+(m.proj>m.tb?'#FF8A7A':'var(--hud-fg)')+'">'+euro0(m.proj)+' / '+euro0(m.tb)+'</b></div>':'')+'</div>'; }
   if(v.hudMix && parts.length) h+='<div class="mix" aria-hidden="true">'+parts.map(p=>'<i style="flex-grow:'+p.v+';background:'+macCol(p.id)+'"></i>').join("")+'</div>';
   const keys=mapKeys(v.hud,m).slice(0,4);
   if(keys.length) h+='<div class="hstats n'+keys.length+'">'+keys.map(k=>{ const r=metVal(k,m,pc); return '<div><span class="l">'+esc(r.l)+'</span>'+(r.na? '<span class="v">—</span><span class="na">'+esc(r.na)+'</span>' : '<span class="v '+(r.cls||"")+'">'+r.short+'</span>')+'</div>'; }).join("")+'</div>';
@@ -1067,6 +1153,7 @@ function renderStats(){
   const parts=byMac(m.list).filter(p=>p.id!=="__chk");
   if(ui.sel && !TAXM[ui.sel]) ui.sel=null;
   const sel=ui.sel; let h="";
+  const f=sel? (ui.selSub? (e=>e.mac===sel && e.sub===ui.selSub) : (e=>e.mac===sel)) : null, bc = sel? (macSlot(sel)>0?macCol(sel):"var(--s0)") : "var(--accent)";
 
   // 0. risparmio: entrate, spese, sforamento; 12 mesi di risparmio (barre sopra e sotto lo zero)
   {
@@ -1080,43 +1167,56 @@ function renderStats(){
     let tb=''; keys.forEach(k=>{ const r=metVal(k,m,pc); tb+=row(esc(r.l), r.full, r.cls, r.na); if(r.subs && !r.na) r.subs.forEach(s=>{ tb+=row('&nbsp;&nbsp;· '+esc(s[0]), s[1], "", null); }); });
     b+= tb? '<table class="mt">'+tb+'</table>' : '<p class="hint">Nessuna voce scelta: tocca «Personalizza».</p>';
     if(pc && keys.includes("accant")) b+='<p class="hint">Accantonato = '+(pc.set? 'quanto avevi messo da parte ('+euro0(pc.open)+') ' : 'partendo da zero ')+'+ entrate − spese di ogni mese da '+esc(monthName(pc.start))+'. Il mese in corso entra quando registri lo stipendio, o quando il mese finisce. Gli investimenti restano fuori.'+(pc.set?'':' Puoi indicare il punto di partenza in Opzioni.')+'</p>';
-    if(m.isCur && keys.some(k=>["saldoPrev","spesePrev","rispPrev"].includes(k))) b+='<p class="hint">Previsione: spese già fatte + ricorrenze in arrivo + '+(m.paceFrom==="storico"?"la tua media giornaliera degli ultimi 3 mesi":"il ritmo di questo mese (servono 2 mesi di storia per una stima più stabile)")+' per i giorni restanti.'+(keys.includes("rispPrev")?' Risparmio previsto = (entrate − budget) + saldo previsto.':'')+'</p>';
-    // grafico: risparmio di ciascuno degli ultimi 12 mesi
-    const ms=[], sv=[]; for(let k=11;k>=0;k--){ const mm=ymAdd(ui.ym,-k), c=monthCtx(mm); ms.push(mm); sv.push(c.list.length || c.ins.length? c.saving : null); }
-    if(vw.chart && sv.filter(x=>x!==null).length>=2){
-      const W=340,H=150,L=46,Rt=6,T=12,B=22, cw=(W-L-Rt)/12, mx=Math.max(1,...sv.map(x=>Math.abs(x||0))), top=niceMax(mx), lo=Math.min(0,...sv.map(x=>x||0))<0? -top : 0;
-      const y=v=>T+(H-T-B)*(top-v)/(top-lo);
-      let g='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Risparmio degli ultimi 12 mesi">';
-      [top,0].concat(lo?[lo]:[]).forEach(q=>{ g+='<line x1="'+L+'" x2="'+(W-Rt)+'" y1="'+y(q)+'" y2="'+y(q)+'" stroke="'+(q===0?"var(--muted)":"var(--line)")+'"/><text x="'+(L-6)+'" y="'+(y(q)+3.5)+'" text-anchor="end" font-size="10" font-family="IBM Plex Mono, monospace" fill="var(--muted)">'+euro0(q).replace(/\s/g," ")+'</text>'; });
-      sv.forEach((v,i)=>{ const x=L+i*cw+cw*.2, bw=cw*.6; if(v!==null){ const y0=y(0), y1=y(v); g+='<rect x="'+x.toFixed(1)+'" y="'+Math.min(y0,y1).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.abs(y1-y0).toFixed(1)+'" fill="'+(v>=0?"var(--good)":"var(--bad)")+'" fill-opacity="'+(i===11?1:.55)+'"><title>'+esc(monthName(ms[i]))+': '+euro(v)+'</title></rect>'; }
-        g+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="'+(i===11?"var(--fg)":"var(--muted)")+'">'+esc(monthName(ms[i],{month:"short"}).slice(0,3))+'</text>'; });
-      b+='<div class="chartbox">'+g+'</svg></div><p class="hint">Risparmio di ogni mese con movimenti (entrate − spese; se mancano le entrate contano 0): verde sopra lo zero, rosso sotto.</p>';
-    }
+    if(m.isCur && keys.some(k=>["saldoPrev","spesePrev","rispPrev"].includes(k))) b+='<p class="hint">Previsione: spese già fatte + ricorrenze in arrivo + '+(m.paceFrom==="storico"?"la tua media giornaliera degli ultimi 3 mesi":"il ritmo di questo mese (servono 2 mesi di storia per una stima più stabile)")+' per i giorni restanti.'+(keys.includes("rispPrev")?' Risparmio previsto = (entrate − budget) + budget residuo previsto.':'')+'</p>';
     if(vw.year && yc.months) b+='<div class="msg '+(yc.saving>=0?"good":"bad")+'"><b>'+ui.ym.slice(0,4)+', mesi chiusi ('+yc.months+'):</b> risparmiati '+euro0(yc.saving)+(yc.rate!==null?' ('+Math.round(yc.rate*100)+'% delle entrate)':'')+'. '+(yc.overMonths? yc.overMonths+(yc.overMonths>1?" mesi":" mese")+' sopra budget, sforamento totale '+euro0(yc.overTot)+'.' : 'Nessun mese sopra budget.')+'</div>';
     h+=win("Risparmio", "", b, "", '<button class="tbtn" id="recapCfg">Personalizza</button>');
     // storico: risparmio effettivo mese per mese e accantonato a fine mese (tocca un mese per aprirlo)
     if(pc){ const rows=[]; for(let mm=ui.ym, k=0; mm>=pc.start && k<12; mm=ymAdd(mm,-1), k++){ const c=monthCtx(mm); if(!c.list.length && !c.ins.length) continue; rows.push([mm,c,potCtx(mm)]); }
-      if(rows.length){ let t='<table class="mt ht"><tr><td>Mese</td><td>Risparmio</td><td>Saldo</td><td>Accantonato</td></tr>';
+      if(rows.length){ let t='<table class="mt ht"><tr><td>Mese</td><td>Risparmio</td><td>Budget residuo</td><td>Accantonato</td></tr>';
         rows.forEach(([mm,c,p])=>{ const sd=(c.tb||0)-c.tot, col=v=>'<span style="color:var(--'+(v>=0?"good":"bad")+')">'+euro0(v)+'</span>';
           t+='<tr data-goym="'+mm+'"'+(mm===ui.ym?' class="cur"':'')+'><td>'+esc(monthName(mm,{month:"short",year:"2-digit"}))+'</td><td>'+col(c.saving)+'</td><td>'+col(sd)+'</td><td>'+euro0(p.pot)+'</td></tr>'; });
-        h+=win("Storico risparmio", "", t+'</table><p class="hint">Risparmio = entrate − spese del mese. Saldo = budget − spese. Se manca un dato conta 0. Accantonato = totale a fine mese (il mese in corso entra con lo stipendio o quando finisce). Tocca un mese per aprirlo.</p>'); } }
+        h+=win("Storico risparmio", "", t+'</table><p class="hint">Risparmio = entrate − spese del mese. Budget residuo = budget − spese. Se manca un dato conta 0. Accantonato = totale a fine mese (il mese in corso entra con lo stipendio o quando finisce). Tocca un mese per aprirlo.</p>'); } }
   }
 
-  // 1. dove vanno i soldi (macro-categorie; le grigie riunite)
-  let body="";
-  if(!parts.length) body='<p class="hint">Nessuna spesa in questo mese.</p>';
-  else {
-    const colored=parts.filter(p=>macSlot(p.id)>0), gray=parts.filter(p=>!(macSlot(p.id)>0)), segsP=colored.slice(); if(gray.length) segsP.push({id:"__gray",v:gray.reduce((t,p)=>t+p.v,0),members:gray});
-    const R=56, C=2*Math.PI*R, gap=segsP.length>1?2.5:0; let acc=0, segs="";
-    segsP.forEach(p=>{ const len=p.v/m.tot*C, hit=p.members? p.members.some(q=>q.id===sel) : p.id===sel, cls=sel?(hit?"":"dim"):"", L=Math.max(.5,len-gap);
-      segs+='<circle class="'+cls+'"'+(p.members?'':' data-mac="'+p.id+'"')+' cx="70" cy="70" r="'+R+'" stroke="'+(p.members?"var(--s0)":macCol(p.id))+'" stroke-dasharray="'+L.toFixed(2)+' '+(C-L).toFixed(2)+'" stroke-dashoffset="'+(-acc).toFixed(2)+'"><title>'+esc(p.members?"Altre":macName(p.id))+': '+euro(p.v)+'</title></circle>'; acc+=len; });
-    const sp=sel?parts.find(p=>p.id===sel):null;
-    const center = sp ? '<b class="num">'+euro0(sp.v)+'</b><span>'+esc(macName(sp.id))+' · '+Math.round(sp.v/m.tot*100)+'%</span>' : '<b class="num">'+euro0(m.tot)+'</b><span>'+m.list.length+' spese</span>';
-    body='<div class="donutwrap"><div class="donut"><svg viewBox="0 0 140 140" role="img" aria-label="Ripartizione per macro-categoria">'+segs+'</svg><div class="c"><div>'+center+'</div></div></div><div class="legend">'+
-      parts.map(p=>'<button class="lg'+(p.id===sel?" on":"")+'" data-mac="'+p.id+'"><span style="color:'+(macSlot(p.id)>0?macCol(p.id):"var(--s0)")+'">'+px(p.id)+'</span><span class="n">'+esc(macName(p.id))+'</span><span class="p num">'+Math.round(p.v/m.tot*100)+'%</span></button>').join("")+
-      '</div></div><p class="hint">Tocca una categoria per l\'analisi dettagliata.'+(parts.some(p=>!(macSlot(p.id)>0))?' Quelle senza colore proprio sono riunite nel grigio.':'')+' Gli investimenti sono esclusi.</p>';
-  }
-  h+=win("Dove vanno i soldi", esc(monthName(ui.ym,{month:"short",year:"numeric"})), body);
+  // 5. calendario
+  const first=dateObj(ui.ym+"-01"), lead=(first.getDay()+6)%7, td=today(), dayTot={}, fl=f? m.list.filter(f) : m.list;
+  fl.forEach(e=>{ dayTot[e.date]=(dayTot[e.date]||0)+e.amt; });
+  const mx=Math.max(0,...Object.values(dayTot)), lv=[0,22,42,64,88], cc= sel? bc : "var(--accent)";
+  let cal='<div class="cal">'+["L","M","M","G","V","S","D"].map(d=>'<span class="wd">'+d+'</span>').join("")+'<span></span>'.repeat(lead);
+  for(let d=1; d<=m.dim; d++){ const ds=ui.ym+"-"+pad(d), v=dayTot[ds]||0, fut=ds>td, k = v? Math.min(4,1+Math.floor(v/mx*3.999)) : 0;
+    const bg = k? 'background:color-mix(in srgb,'+cc+' '+lv[k]+'%,var(--surface2));color:'+(k>=3?"#fff":"var(--fg)") : "";
+    cal+='<button class="'+(fut?"fut":"")+(ui.day===ds?" sel":"")+'" data-day="'+ds+'" style="'+bg+'" aria-label="'+d+': '+(v?euro(v):"nessuna spesa")+'"'+(fut?" disabled":"")+'>'+d+'</button>'; }
+  cal+='</div>';
+  const dsel=ui.day && ymOf(ui.day)===ui.ym ? ui.day : null;
+  let dInfo='<p class="hint">Tocca un giorno per vederne le spese.</p>';
+  if(dsel){ const de=fl.filter(e=>e.date===dsel); dInfo='<p class="hint"><b style="color:var(--fg)">'+esc(cap(dayLabel(dsel)))+'</b> · '+(de.length? euro(sum(de))+' in '+de.length+(de.length>1?" spese":" spesa") : "nessuna spesa")+'</p>'+(de.length?'<div class="rows">'+de.map(rowHTML).join("")+'</div>':''); }
+  if(V().charts.cal) h+=win("Giorno per giorno", esc(monthName(ui.ym,{month:"short",year:"numeric"})), '<div class="calkey">meno '+[1,2,3,4].map(k=>'<i style="background:color-mix(in srgb,'+cc+' '+lv[k]+'%,var(--surface2))"></i>').join("")+' più</div>'+cal+dInfo);
+
+  // ---- grafici del periodo: un solo filtro qui sopra vale per tutti ----
+  const R=rangeRes(), G=granOf(R), BK=bucketize(R.from,R.to,G.g), vch=V().charts, inR=d=>d>=R.from && d<=R.to;
+  const rList=S.exps.filter(e=>consumption(e) && inR(e.date)), rIns=(S.ins||[]).filter(e=>inR(e.date)), rTot=sum(rList), rParts=byMac(rList);
+  const inB=(arr,b)=>sum(arr.filter(e=>e.date>=b.from && e.date<=b.to));
+  h+='<div class="pfilter"><button class="pbtn" id="pPick" aria-haspopup="dialog">'+px("chart")+'<span><b>Grafici · '+esc(R.label)+'</b><span>'+esc(R.text)+' · '+esc(GN[G.g])+(G.note?' ('+esc(G.note)+')':'')+'</span></span><svg class="ico" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></div>';
+
+  // a. risparmio nel periodo
+  if(vch.save){ const sv=BK.map(b=>inB(rIns,b)-inB(rList,b)), st=sv.reduce((x,y)=>x+y,0);
+    h+=win("Risparmio · "+esc(R.label), euro0(st), barsSVG("save",BK,sv,G.g,{div:true, aria:"Risparmio nel periodo"})+'<p class="hint">Entrate − spese '+(G.g==="g"?"di ogni giorno":G.g==="s"?"di ogni settimana":"di ogni mese")+' (se mancano le entrate contano 0): verde sopra lo zero, rosso sotto. Tocca una barra per il valore.</p>'); }
+
+  // b. dove vanno i soldi nel periodo
+  if(vch.mix){ let body="";
+    if(!rParts.length) body='<p class="hint">Nessuna spesa nel periodo.</p>';
+    else {
+      const colored=rParts.filter(p=>macSlot(p.id)>0), gray=rParts.filter(p=>!(macSlot(p.id)>0)), segsP=colored.slice(); if(gray.length) segsP.push({id:"__gray",v:gray.reduce((t,p)=>t+p.v,0),members:gray});
+      const pt=rParts.reduce((t,p)=>t+p.v,0), R0=56, C0=2*Math.PI*R0, gap=segsP.length>1?2.5:0; let acc=0, segs="";
+      segsP.forEach(p=>{ const len=p.v/pt*C0, hit=p.members? p.members.some(q=>q.id===sel) : p.id===sel, cls=sel?(hit?"":"dim"):"", Lg=Math.max(.5,len-gap);
+        segs+='<circle class="'+cls+'"'+(p.members||p.id==="__chk"?'':' data-mac="'+p.id+'"')+' cx="70" cy="70" r="'+R0+'" stroke="'+(p.members?"var(--s0)":macCol(p.id))+'" stroke-dasharray="'+Lg.toFixed(2)+' '+(C0-Lg).toFixed(2)+'" stroke-dashoffset="'+(-acc).toFixed(2)+'"><title>'+esc(p.members?"Altre":p.id==="__chk"?"Da verificare":macName(p.id))+': '+euro(p.v)+'</title></circle>'; acc+=len; });
+      const sp=sel?rParts.find(p=>p.id===sel):null;
+      const center = sp ? '<b class="num">'+euro0(sp.v)+'</b><span>'+esc(macName(sp.id))+' · '+Math.round(sp.v/pt*100)+'%</span>' : '<b class="num">'+euro0(pt)+'</b><span>'+rList.length+(rList.length===1?' spesa':' spese')+'</span>';
+      body='<div class="donutwrap"><div class="donut"><svg viewBox="0 0 140 140" role="img" aria-label="Ripartizione per macro-categoria nel periodo">'+segs+'</svg><div class="c"><div>'+center+'</div></div></div><div class="legend">'+
+        rParts.map(p=>p.id==="__chk"? '<div class="lg"><span style="color:var(--s0)">'+px("ask")+'</span><span class="n">Da verificare</span><span class="p num">'+Math.round(p.v/pt*100)+'%</span></div>' : '<button class="lg'+(p.id===sel?" on":"")+'" data-mac="'+p.id+'"><span style="color:'+(macSlot(p.id)>0?macCol(p.id):"var(--s0)")+'">'+px(p.id)+'</span><span class="n">'+esc(macName(p.id))+'</span><span class="p num">'+Math.round(p.v/pt*100)+'%</span></button>').join("")+
+        '</div></div><p class="hint">Tocca una categoria: i grafici del periodo si filtrano e sotto compare la sua analisi del mese selezionato.'+(rParts.some(p=>!(macSlot(p.id)>0))?' Quelle senza colore proprio sono riunite nel grigio.':'')+' Gli investimenti sono esclusi.</p>';
+    }
+    h+=win("Dove vanno i soldi", esc(R.label), body); }
 
   // 2. dettaglio della macro scelta: sottocategorie, indicatori e messaggi
   if(sel){
@@ -1134,65 +1234,46 @@ function renderStats(){
     if(a.struct) b+='<div class="msg"><b>Abitudine cambiata.</b> Gli ultimi 3 mesi sono '+(a.struct==="up"?"sopra il massimo":"sotto il minimo")+' dei 6 precedenti.</div>';
     else if(a.trend) b+='<div class="msg"><b>Trend '+(a.trend==="up"?"in crescita":"in calo")+'.</b> La media a 3 mesi '+(a.trend==="up"?"sale":"scende")+' da 3 mesi di fila.</div>';
     b+='<button class="linkbtn" id="selClear" style="align-self:flex-start">Torna al totale</button>';
-    h+=win(esc(nm), "analisi", b, "detail");
+    h+=win(esc(nm), "analisi di "+esc(monthName(ui.ym,{month:"short",year:"numeric"})), b, "detail");
   }
 
-  // 3. ultimi 12 mesi
-  const f=sel? (ui.selSub? (e=>e.mac===sel && e.sub===ui.selSub) : (e=>e.mac===sel)) : null, months=[], vals=[], buds=[];
-  const fData=firstDataYm();   // il budget si disegna solo dai mesi in cui usi l'app
-  for(let k=11;k>=0;k--){ const mm=ymAdd(ui.ym,-k); months.push(mm); vals.push(sum(expsOf(mm,f))); buds.push(sel || !fData || mm<fData ? 0 : totalBudget(mm)); }
-  const nz=vals.filter(v=>v>0), mean=nz.length?nz.reduce((a,b)=>a+b,0)/nz.length:0;
-  const W=340,H=176,L=46,Rt=6,T=12,B=24, cw=(W-L-Rt)/12, top=niceMax(Math.max(...vals,...buds,1)), y=v=>T+(H-T-B)*(1-v/top);
-  let svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Andamento ultimi 12 mesi">';
-  [0,.5,1].forEach(q=>{ const yy=y(top*q); svg+='<line x1="'+L+'" x2="'+(W-Rt)+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--line)"/><text x="'+(L-6)+'" y="'+(yy+3.5)+'" text-anchor="end" font-size="10" font-family="IBM Plex Mono, monospace" fill="var(--muted)">'+euro0(top*q).replace(/\s/g," ")+'</text>'; });
-  const bc = sel? (macSlot(sel)>0?macCol(sel):"var(--s0)") : "var(--accent)";
-  vals.forEach((v,i)=>{ const x=L+i*cw+cw*.2, bw=cw*.6, yy=y(v), last=i===11;
-    svg+='<rect x="'+x.toFixed(1)+'" y="'+yy.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(0,(H-B)-yy).toFixed(1)+'" fill="'+bc+'" fill-opacity="'+(last||ui.bar===i?1:.4)+'"/>';
-    svg+='<rect data-bar="'+i+'" x="'+(L+i*cw).toFixed(1)+'" y="'+T+'" width="'+cw.toFixed(1)+'" height="'+(H-T)+'" fill="transparent" style="cursor:pointer"/>';
-    svg+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="'+(last?"var(--fg)":"var(--muted)")+'" font-weight="'+(last?700:400)+'">'+esc(monthName(months[i],{month:"short"}).slice(0,3))+'</text>'; });
-  if(mean>0) svg+='<line x1="'+L+'" x2="'+(W-Rt)+'" y1="'+y(mean)+'" y2="'+y(mean)+'" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 4"/>';
-  if(buds.some(b=>b>0)){ let d=""; buds.forEach((b,i)=>{ if(!b) return; const x0=L+i*cw, x1=x0+cw, yy=y(b).toFixed(1); d+=(d&&buds[i-1]?"L":"M")+x0.toFixed(1)+" "+yy+"L"+x1.toFixed(1)+" "+yy; }); svg+='<path d="'+d+'" fill="none" stroke="var(--warn)" stroke-width="2"/>'; }
-  svg+='</svg>';
-  const tip = ui.bar!==null ? '<div class="tip" style="left:'+((L+ui.bar*cw+cw/2)/W*100).toFixed(1)+'%;top:'+(y(vals[ui.bar])/H*100).toFixed(1)+'%">'+esc(cap(monthName(months[ui.bar],{month:"short",year:"numeric"})))+' · '+euro(vals[ui.bar])+'</div>' : "";
-  h+=win(sel? esc(ui.selSub?subName(sel,ui.selSub):macName(sel))+" · 12 mesi" : "Totale · 12 mesi", "", '<div class="chartbox">'+svg+tip+'</div><div class="keyrow"><span><i></i>media '+euro0(mean)+'</span>'+(buds.some(b=>b>0)?'<span><i class="b"></i>budget di ogni mese</span>':'')+'</div>');
 
-  // 4. budget unico: quanto ne usa ciascuna macro-categoria
-  let bb;
-  if(m.tb){ const st=m.tot>m.tb?"bad":(m.tot>=m.tb*.8?"warn":""), txt= st==="bad" ? "▲ Sforato di "+euro0(m.tot-m.tb) : st==="warn" ? "! Vicino al limite: restano "+euro0(m.tb-m.tot) : "Restano "+euro0(m.tb-m.tot);
-    bb='<div class="brow"><span class="nm"><span>Speso su budget</span></span><span class="vv num"><b>'+euro0(m.tot)+'</b> / '+euro0(m.tb)+'</span>'+pbarHTML(m.tot/m.tb,st)+'<span class="state '+st+'">'+txt+'</span></div>';
-    if(parts.length) bb+='<p class="hint">Quanto del budget ha usato ciascuna categoria:</p><div class="bars">'+parts.map(p=>'<div class="brow"><span class="nm"><span style="color:'+macCol(p.id==="__chk"?null:p.id)+'">'+px(p.id==="__chk"?"ask":p.id)+'</span><span>'+esc(p.id==="__chk"?"Da verificare":macName(p.id))+'</span></span><span class="vv num"><b>'+euro0(p.v)+'</b> · '+Math.round(p.v/m.tb*100)+'%</span>'+pbarHTML(p.v/m.tb,"neu")+'</div>').join("")+'</div>';
-  } else bb='<p class="hint">Nessun budget per questo mese. Impostalo da Opzioni: è la parte dello stipendio che destini alle spese.</p>';
-  h+=win("Budget", m.tb? euro0(m.tot)+" / "+euro0(m.tb) : "", bb);
+  // c. totale delle spese nel periodo, con budget in proporzione ai giorni
+  if(vch.trend){ const fl2=f? rList.filter(f) : rList, vals=BK.map(b=>inB(fl2,b)), buds=BK.map(b=> sel? 0 : budgetBetween(b.from,b.to));
+    const nz=vals.filter(v=>v>0), mean=nz.length? nz.reduce((x,y)=>x+y,0)/nz.length : 0, tt=vals.reduce((x,y)=>x+y,0);
+    h+=win((sel? esc(ui.selSub?subName(sel,ui.selSub):macName(sel)) : "Totale")+" · "+esc(R.label), euro0(tt), barsSVG("trend",BK,vals,G.g,{col:bc, bud:buds, mean, aria:"Spese nel periodo"})+'<div class="keyrow"><span><i></i>media '+euro0(mean)+(G.g==="m"?" al mese":G.g==="s"?" a settimana":" al giorno")+'</span>'+(buds.some(x=>x>0)?'<span><i class="b"></i>budget '+(G.g==="m" && R.from.slice(8)==="01" && R.to===ymOf(R.to)+"-"+pad(daysIn(ymOf(R.to)))?"di ogni mese":"in proporzione ai giorni")+'</span>':'')+'</div>'); }
 
-  // 5. calendario
-  const first=dateObj(ui.ym+"-01"), lead=(first.getDay()+6)%7, td=today(), dayTot={}, fl=f? m.list.filter(f) : m.list;
-  fl.forEach(e=>{ dayTot[e.date]=(dayTot[e.date]||0)+e.amt; });
-  const mx=Math.max(0,...Object.values(dayTot)), lv=[0,22,42,64,88], cc= sel? bc : "var(--accent)";
-  let cal='<div class="cal">'+["L","M","M","G","V","S","D"].map(d=>'<span class="wd">'+d+'</span>').join("")+'<span></span>'.repeat(lead);
-  for(let d=1; d<=m.dim; d++){ const ds=ui.ym+"-"+pad(d), v=dayTot[ds]||0, fut=ds>td, k = v? Math.min(4,1+Math.floor(v/mx*3.999)) : 0;
-    const bg = k? 'background:color-mix(in srgb,'+cc+' '+lv[k]+'%,var(--surface2));color:'+(k>=3?"#fff":"var(--fg)") : "";
-    cal+='<button class="'+(fut?"fut":"")+(ui.day===ds?" sel":"")+'" data-day="'+ds+'" style="'+bg+'" aria-label="'+d+': '+(v?euro(v):"nessuna spesa")+'"'+(fut?" disabled":"")+'>'+d+'</button>'; }
-  cal+='</div>';
-  const dsel=ui.day && ymOf(ui.day)===ui.ym ? ui.day : null;
-  let dInfo='<p class="hint">Tocca un giorno per vederne le spese.</p>';
-  if(dsel){ const de=fl.filter(e=>e.date===dsel); dInfo='<p class="hint"><b style="color:var(--fg)">'+esc(cap(dayLabel(dsel)))+'</b> · '+(de.length? euro(sum(de))+' in '+de.length+(de.length>1?" spese":" spesa") : "nessuna spesa")+'</p>'+(de.length?'<div class="rows">'+de.map(rowHTML).join("")+'</div>':''); }
-  h+=win("Giorno per giorno", "", '<div class="calkey">meno '+[1,2,3,4].map(k=>'<i style="background:color-mix(in srgb,'+cc+' '+lv[k]+'%,var(--surface2))"></i>').join("")+' più</div>'+cal+dInfo);
+  // d. budget del periodo: speso, budget, categorie e mese per mese
+  if(vch.budget){ const bud=budgetBetween(R.from,R.to), res=bud-rTot; let bb='';
+    if(bud>0){ const st=rTot>bud?"bad":(rTot>=bud*.8?"warn":""), txt= st==="bad" ? "▲ Sforato di "+euro0(-res) : st==="warn" ? "! Vicino al limite: restano "+euro0(res) : "Restano "+euro0(res);
+      bb='<div class="brow"><span class="nm"><span>Speso su budget</span></span><span class="vv num"><b>'+euro0(rTot)+'</b> / '+euro0(bud)+'</span>'+pbarHTML(rTot/bud,st)+'<span class="state '+st+'">'+txt+'</span></div>';
+      if(rParts.length) bb+='<p class="hint">Quanto del budget ha usato ciascuna categoria:</p><div class="bars">'+rParts.map(p=>'<div class="brow"><span class="nm"><span style="color:'+(p.id==="__chk"?"var(--s0)":macCol(p.id))+'">'+px(p.id==="__chk"?"ask":p.id)+'</span><span>'+esc(p.id==="__chk"?"Da verificare":macName(p.id))+'</span></span><span class="vv num"><b>'+euro0(p.v)+'</b> · '+Math.round(p.v/bud*100)+'%</span>'+pbarHTML(p.v/bud,"neu")+'</div>').join("")+'</div>';
+    } else bb='<p class="hint">Nessun budget nel periodo: conta 0, quindi il budget residuo è '+euro0(res)+'. Lo imposti da Opzioni.</p>';
+    const mos=[], f0=firstDataYm(); for(let ym=ymOf(R.from); ym<=ymOf(R.to); ym=ymAdd(ym,1)) if(f0 && ym>=f0) mos.push(ym);
+    if(mos.length>=2){ let t='<table class="mt ht"><tr><td>Mese</td><td>Speso</td><td>Budget</td><td>Residuo</td></tr>', part=false;
+      mos.slice().reverse().forEach(ym=>{ const x= ym===ymOf(R.from)? R.from : ym+"-01", y= ym===ymOf(R.to)? R.to : ym+"-"+pad(daysIn(ym)), sp=sum(rList.filter(e=>e.date>=x && e.date<=y)), bu=budgetBetween(x,y), rs=bu-sp, pp= x.slice(8)!=="01" || y!==ym+"-"+pad(daysIn(ym)); part=part||pp;
+        t+='<tr><td>'+esc(monthName(ym,{month:"short",year:"2-digit"}))+(pp?' *':'')+'</td><td>'+euro0(sp)+'</td><td>'+euro0(bu)+'</td><td><span style="color:var(--'+(rs>=0?"good":"bad")+')">'+euro0(rs)+'</span></td></tr>'; });
+      bb+=t+'</table><p class="hint">Mese per mese nel periodo. Residuo = budget − speso'+(part?'; * mese preso solo in parte: budget in proporzione ai giorni':'')+'.</p>'; }
+    else if(R.days<daysIn(ymOf(R.from)) && bud>0) bb+='<p class="hint">Il periodo non copre un mese intero: il budget è in proporzione ai giorni.</p>';
+    h+=win("Budget · "+esc(R.label), euro0(rTot)+" / "+euro0(bud), bb); }
 
-  // 6. spese più grandi
-  const big=fl.slice().sort((a,b)=>b.amt-a.amt).slice(0,5);
-  if(big.length) h+=win("Le più grandi", "", '<ol class="top">'+big.map(e=>'<li>'+tileHTML(e.mac)+'<span class="txt"><div>'+esc(e.note||subName(e.mac,e.sub)||macName(e.mac))+'</div><div class="d">'+esc(macName(e.mac))+' · '+esc(shortDate(e.date))+' · '+esc(NAT[natOf(e)]||"—")+'</div></span><span class="num" style="font-weight:600">'+euro(e.amt)+'</span></li>').join("")+'</ol>');
+  // e. spese più grandi nel periodo
+  if(vch.top){ const big=(f? rList.filter(f) : rList).slice().sort((x,y)=>y.amt-x.amt).slice(0,5);
+    if(big.length) h+=win("Le più grandi · "+esc(R.label), "", '<ol class="top">'+big.map(e=>'<li>'+tileHTML(e.mac)+'<span class="txt"><div>'+esc(e.note||subName(e.mac,e.sub)||macName(e.mac))+'</div><div class="d">'+esc(macName(e.mac))+' · '+esc(shortDate(e.date))+' · '+esc(NAT[natOf(e)]||"—")+'</div></span><span class="num" style="font-weight:600">'+euro(e.amt)+'</span></li>').join("")+'</ol>'); }
 
-  // 7. movimenti finanziari (fuori dai consumi)
-  if(m.fin.length) h+=win("Movimenti finanziari", euro0(sum(m.fin)), '<p class="hint">Investimenti: non sono consumi, quindi restano fuori da totale, budget e proiezione.</p><div class="rows">'+m.fin.map(rowHTML).join("")+'</div>');
+  // f. movimenti finanziari nel periodo (fuori dai consumi)
+  { const fin=S.exps.filter(e=>isInvest(e) && inR(e.date)).sort((x,y)=>x.date<y.date?1:-1);
+    if(fin.length) h+=win("Movimenti finanziari · "+esc(R.label), euro0(sum(fin)), '<p class="hint">Investimenti: non sono consumi, quindi restano fuori da totale, budget e proiezione.</p><div class="rows">'+fin.map(rowHTML).join("")+'</div>'); }
 
   // 8. traguardi
   if(S.achOn) h+=win("Traguardi", Object.keys(S.ach||{}).length+"/"+ACH.length, '<div class="ach">'+ACH.map(a=>{ const ok=S.ach&&S.ach[a.id]; return '<div class="'+(ok?"":"lock")+'">'+px(ok?"star":"ask")+'<span><b>'+(ok?esc(a.name):"???")+'</b><span>'+esc(a.desc)+'</span></span></div>'; }).join("")+'</div><p class="hint">Si possono spegnere da Opzioni.</p>');
 
   const v=$("v-stats"); v.innerHTML=h;
-  v.querySelectorAll("[data-mac]").forEach(b=>{ b.onclick=()=>{ const id=b.getAttribute("data-mac"); ui.sel= ui.sel===id ? null : id; ui.selSub=null; ui.bar=null; haptic(6); renderStats(); if(ui.sel){ const d=$("detail"); if(d) d.scrollIntoView({behavior:fxOn()?"smooth":"auto",block:"start"}); } }; });
+  v.querySelectorAll("[data-mac]").forEach(b=>{ b.onclick=()=>{ const id=b.getAttribute("data-mac"); ui.sel= ui.sel===id ? null : id; ui.selSub=null; ui.tip=null; haptic(6); renderStats(); if(ui.sel){ const d=$("detail"); if(d) d.scrollIntoView({behavior:fxOn()?"smooth":"auto",block:"start"}); } }; });
   v.querySelectorAll("[data-sub]").forEach(b=>{ b.onclick=()=>{ const k=b.getAttribute("data-sub"); if(!k) return; ui.selSub= ui.selSub===k ? null : k; renderStats(); }; });
-  v.querySelectorAll("[data-goym]").forEach(r=>{ r.onclick=()=>{ const mm=r.getAttribute("data-goym"); if(mm===ui.ym) return; ui.ym=mm; ui.bar=null; ui.day=null; haptic(6); render(true); window.scrollTo(0,0); }; });
-  v.querySelectorAll("[data-bar]").forEach(b=>{ b.onclick=()=>{ const i=+b.getAttribute("data-bar"); ui.bar = ui.bar===i ? null : i; renderStats(); }; });
+  v.querySelectorAll("[data-goym]").forEach(r=>{ r.onclick=()=>{ const mm=r.getAttribute("data-goym"); if(mm===ui.ym) return; ui.ym=mm; ui.tip=null; ui.day=null; haptic(6); render(true); window.scrollTo(0,0); }; });
+  v.querySelectorAll("[data-bar]").forEach(b=>{ b.onclick=()=>{ const [id,i]=b.getAttribute("data-bar").split(":"); ui.tip = ui.tip && ui.tip.id===id && ui.tip.i===+i ? null : {id, i:+i}; renderStats(); }; });
+  const pp=$("pPick"); if(pp) pp.onclick=openRangeSheet;
   v.querySelectorAll("[data-day]").forEach(b=>{ b.onclick=()=>{ const d=b.getAttribute("data-day"); ui.day = ui.day===d ? null : d; renderStats(); }; });
   bindRows(v);
   const sc=$("selClear"); if(sc) sc.onclick=()=>{ ui.sel=null; ui.selSub=null; renderStats(); };
@@ -1287,9 +1368,9 @@ function drawViewSheet(){
   const v=V(), isH=Vs.kind==="hud", sel=isH? v.hud : v.recap, list=MET.filter(x=>!isH || x.hud), full=isH && sel.length>=4;
   let h=sheetHead(isH?"Schermata principale":"Recap risparmio","Fatto")+'<div class="sb">';
   h+='<p class="hint">'+(isH? "Lo speso del mese resta sempre in alto. Sotto puoi mostrare fino a 4 riquadri." : "Scegli le voci del recap. Nei mesi passati le voci previste mostrano il dato effettivo.")+'</p>';
-  if(isH) h+='<label class="switch"><span>Barra del budget (saldo e spese previste)</span><input type="checkbox" id="vBar"'+(v.hudBar?" checked":"")+'></label><label class="switch"><span>Barra delle categorie</span><input type="checkbox" id="vMix"'+(v.hudMix?" checked":"")+'></label><div class="lab2"><span>Riquadri</span><span class="num">'+sel.length+'/4</span></div>';
+  if(isH) h+='<label class="switch"><span>Barra del budget (budget residuo e spese previste)</span><input type="checkbox" id="vBar"'+(v.hudBar?" checked":"")+'></label><label class="switch"><span>Barra delle categorie</span><input type="checkbox" id="vMix"'+(v.hudMix?" checked":"")+'></label><div class="lab2"><span>Riquadri</span><span class="num">'+sel.length+'/4</span></div>';
   h+='<div class="opts">'+list.map(x=>{ const on=sel.includes(x.k), dis=!on && full; return '<label class="opt'+(dis?" dis":"")+'"><input type="checkbox" data-vk="'+x.k+'"'+(on?" checked":"")+(dis?" disabled":"")+'><span><b>'+esc(x.name)+'</b><small>'+esc(x.desc)+'</small></span></label>'; }).join("")+'</div>';
-  if(!isH) h+='<label class="switch"><span>Grafico del risparmio, 12 mesi</span><input type="checkbox" id="vChart"'+(v.chart?" checked":"")+'></label><label class="switch"><span>Riepilogo dei mesi chiusi dell\'anno</span><input type="checkbox" id="vYear"'+(v.year?" checked":"")+'></label>';
+  if(!isH) h+='<label class="switch"><span>Riepilogo dei mesi chiusi dell\'anno</span><input type="checkbox" id="vYear"'+(v.year?" checked":"")+'></label>';
   h+='<div class="btns"><button class="btn" id="vDef">'+(isH?"Predefinito":"Essenziale")+'</button>'+(isH?'<button class="btn" id="vNone">Nessun riquadro</button>':'<button class="btn" id="vAll">Tutte le voci</button>')+'</div></div>';
   const sh=$("sheet"), st=sh.scrollTop; sh.innerHTML=h; sh.classList.remove("typing","inmode"); sh.scrollTop=st;
   $("shClose").onclick=closeSheet;
@@ -1297,8 +1378,31 @@ function drawViewSheet(){
   sh.querySelectorAll("[data-vk]").forEach(x=>{ x.onchange=()=>{ const k=x.getAttribute("data-vk"); const s=sel.filter(y=>y!==k); if(x.checked) s.push(k); upd(isH?{hud:metOrder(s).slice(0,4)}:{recap:metOrder(s)}); }; });
   if(isH){ $("vBar").onchange=function(){ upd({hudBar:this.checked}); }; $("vMix").onchange=function(){ upd({hudMix:this.checked}); };
     $("vDef").onclick=()=>upd({hud:VDEF.hud.slice(),hudBar:true,hudMix:true}); $("vNone").onclick=()=>upd({hud:[]}); }
-  else { $("vChart").onchange=function(){ upd({chart:this.checked}); }; $("vYear").onchange=function(){ upd({year:this.checked}); };
+  else { $("vYear").onchange=function(){ upd({year:this.checked}); };
     $("vDef").onclick=()=>upd({recap:VDEF.recap.slice()}); $("vAll").onclick=()=>upd({recap:list.map(x=>x.k)}); }
+}
+
+
+/* foglio "periodo dei grafici": preset, date libere, raggruppamento, grafici visibili */
+function openRangeSheet(){ Vs={kind:"rng"}; drawRangeSheet(); showSheet(); }
+function drawRangeSheet(){
+  const v=V(), r=v.rng, R=rangeRes(), ch=v.charts;
+  let h=sheetHead("Periodo dei grafici","Fatto")+'<div class="sb">';
+  h+='<p class="hint">Vale per tutti i grafici della pagina Analisi, così i numeri tornano tra loro. I periodi a mesi finiscono nel mese scelto in alto; 7 e 30 giorni finiscono oggi (o a fine mese, se guardi un mese passato).</p>';
+  h+='<div class="prs">'+PRESETS.map(([k,l])=>'<button class="prow" data-p="'+k+'" aria-pressed="'+(r.p===k)+'"><span class="ck">'+(r.p===k?"✓":"")+'</span><span>'+esc(l)+'</span>'+(k==="mese"?'<span class="sm">'+esc(monthName(ui.ym,{month:"short",year:"numeric"}))+'</span>':'')+'</button>').join("")+
+    '<div class="pcus'+(r.p==="custom"?" on":"")+'"><span class="ck">'+(r.p==="custom"?"✓":"")+'</span><span>Date a scelta</span><div class="daterow"><input type="date" id="rFrom" aria-label="Dal" value="'+esc(r.p==="custom"&&r.from?r.from:R.from)+'"><span>–</span><input type="date" id="rTo" aria-label="Al" value="'+esc(r.p==="custom"&&r.to?r.to:R.to)+'"></div><button class="btn'+(r.p==="custom"?"":" primary")+'" id="rApply">Usa queste date</button></div></div>';
+  h+='<div class="field"><span class="lab">Raggruppa le barre</span><div class="seg4">'+[["auto","Auto"],["g","Giorni"],["s","Settimane"],["m","Mesi"]].map(([k,l])=>'<button data-g="'+k+'" aria-pressed="'+((r.g||"auto")===k)+'">'+l+'</button>').join("")+'</div><p class="hint">Auto: per giorno fino a 31 giorni, per settimana fino a circa 4 mesi, poi per mese. Oltre 62 barre raggruppo di più.</p></div>';
+  h+='<div class="field"><span class="lab">Grafici da mostrare</span>'+[["save","Risparmio nel periodo"],["mix","Dove vanno i soldi"],["trend","Totale delle spese"],["budget","Budget"],["top","Le più grandi"],["cal","Giorno per giorno (mese selezionato)"]].map(([k,l])=>'<label class="switch"><span>'+l+'</span><input type="checkbox" data-ch="'+k+'"'+(ch[k]?" checked":"")+'></label>').join("")+'</div></div>';
+  const sh=$("sheet"), st=sh.scrollTop; sh.innerHTML=h; sh.classList.remove("typing","inmode"); sh.scrollTop=st;
+  $("shClose").onclick=closeSheet;
+  const upd=p=>{ setV(p); ui.tip=null; drawRangeSheet(); render(); };
+  sh.querySelectorAll("[data-p]").forEach(x=>{ x.onclick=()=>upd({rng:Object.assign({}, V().rng, {p:x.getAttribute("data-p")})}); });
+  sh.querySelectorAll("[data-g]").forEach(x=>{ x.onclick=()=>upd({rng:Object.assign({}, V().rng, {g:x.getAttribute("data-g")})}); });
+  sh.querySelectorAll("[data-ch]").forEach(x=>{ x.onchange=()=>upd({charts:Object.assign({}, V().charts, {[x.getAttribute("data-ch")]:x.checked})}); });
+  $("rApply").onclick=()=>{ let a=$("rFrom").value, b=$("rTo").value; const ok=s=>/^\d{4}-\d{2}-\d{2}$/.test(s);
+    if(!ok(a)||!ok(b)){ toast("Indica le due date"); return; } if(a>b){ const t=a; a=b; b=t; }
+    if(dayDiff(a,b)>3660){ toast("Massimo 10 anni"); return; }
+    upd({rng:Object.assign({}, V().rng, {p:"custom", from:a, to:b})}); toast("Periodo: "+fmtD(a,true)+" – "+fmtD(b,true)); };
 }
 
 /* foglio macro-categoria: colore, budget con storico, parole chiave */
@@ -1518,7 +1622,7 @@ function render(anim){
   if(ui.tab==="list") renderList(); else if(ui.tab==="stats") renderStats(); else renderSettings();
   if(anim && fxOn()){ const v=$("v-"+ui.tab); void v.offsetWidth; v.classList.add("enter"); }
 }
-function goMonth(k){ const n=ymAdd(ui.ym,k); if(n>ymOf(today())) return; ui.ym=n; ui.bar=null; ui.day=null; haptic(6); render(true); }
+function goMonth(k){ const n=ymAdd(ui.ym,k); if(n>ymOf(today())) return; ui.ym=n; ui.tip=null; ui.day=null; haptic(6); render(true); }
 document.querySelectorAll("[data-px]").forEach(el=>{ el.outerHTML=px(el.getAttribute("data-px")); });
 $("logoIco").innerHTML=px("coin");
 $("prevM").onclick=()=>goMonth(-1);
